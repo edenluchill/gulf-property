@@ -54,7 +54,7 @@ import { writeFileSync, readFileSync, existsSync } from 'fs'
 import { LIVE_AUDIO, FLASH } from '../src/services/ai/models'
 import { getSystemInstruction } from '../src/routes/voice-token'
 import { executeTool } from '../src/services/voice-assistant-tools'
-import { askLuna } from '../src/services/luna-brain'
+import { askLuna, startAsk, awaitAsk } from '../src/services/luna-brain'
 
 /**
  * **Live 层的工具声明** —— 必须和 `frontend/src/contexts/VoiceAssistantContext.tsx`
@@ -80,6 +80,12 @@ const LIVE_TOOLS = [
       },
       required: ['question'],
     },
+  },
+  {
+    // 两段式作答的第二段 —— 跑分必须复刻它,否则测的是一个生产上不存在的流程。
+    name: 'ask_luna_more',
+    description: 'Call this IMMEDIATELY after you finish saying an ask_luna reply that came back with "pending": true. That reply was only a holding line — the real answer is still being prepared and this is how you collect it. It takes no arguments. If you skip this call, the customer hears you say you are looking something up and then nothing at all.',
+    parameters: { type: 'OBJECT' as any, properties: {} },
   },
   {
     name: 'capture_contact',
@@ -285,13 +291,22 @@ const SCENARIOS: Scenario[] = [
 // 跑一场真实 Live 会话（文字注入）
 // ════════════════════════════════════════════════════════════════════════════
 
-interface Turn { user: string; reply: string; tools: { name: string; args: any; result: any }[] }
+interface Turn {
+  user: string; reply: string; tools: { name: string; args: any; result: any }[]
+  /** 两段式:这一轮拿到了过渡句(pending) */
+  staged?: boolean
+  /** 两段式:这一轮真的回来取了正文 */
+  resumed?: boolean
+}
 
 async function runScenario(sc: Scenario): Promise<Turn[]> {
   const turns: Turn[] = []
   let replyBuf = ''
   const toolLog: { name: string; args: any; result: any }[] = []
   let turnDone: (() => void) | null = null
+  // 两段式作答的追踪 —— 只说了过渡句却没调 ask_luna_more,就是把客户挂在了线上。
+  let stagedThisTurn = false
+  let sawAskMore = false
 
   const session = await ai.live.connect({
     model: MODEL,
@@ -313,12 +328,17 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
             let result: any = null, summary = ''
             try {
               if (fc.name === 'ask_luna') {
-                // 两层架构:Live 层唯一的知识入口。走真 Brain,和生产完全一致。
-                const a = await askLuna({
+                // 两段式:秒回过渡句 + 后台启动 Brain,和生产完全一致。
+                const staged = startAsk({
                   question: String((fc.args as any)?.question || ''),
                   context: (fc.args as any)?.context,
                   sessionId: sc.id,
                 })
+                stagedThisTurn = true
+                result = { speech: staged.speech, pending: true }; summary = staged.speech
+              } else if (fc.name === 'ask_luna_more') {
+                const a = await awaitAsk(sc.id)
+                sawAskMore = true
                 // **把 Brain 内部调用过的工具原样摊进 toolLog** —— 下面的
                 // 「数字溯源」「遵守不确定信号」两条断言读的就是它。不摊开的话
                 // 拆层等于把这两条断言弄瞎(它们只会看到一个 ask_luna)。
@@ -336,7 +356,7 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
             } catch (e: any) {
               summary = `Failed: ${e?.message}`
             }
-            if (fc.name !== 'ask_luna') {
+            if (fc.name !== 'ask_luna' && fc.name !== 'ask_luna_more') {
               toolLog.push({ name: fc.name!, args: fc.args, result: { result, summary } })
             }
             responses.push({ id: fc.id, name: fc.name, response: { result: JSON.stringify(result), summary } })
@@ -353,15 +373,18 @@ async function runScenario(sc: Scenario): Promise<Turn[]> {
   try {
     for (const user of sc.turns) {
       replyBuf = ''
+      stagedThisTurn = false
+      sawAskMore = false
       const before = toolLog.length
       const done = new Promise<void>((res) => { turnDone = res })
       session.sendClientContent({ turns: [{ role: 'user', parts: [{ text: user }] }], turnComplete: true })
       await Promise.race([done, new Promise<void>((r) => setTimeout(r, 45_000))])
-      turns.push({ user, reply: replyBuf.trim(), tools: toolLog.slice(before) })
+      turns.push({ user, reply: replyBuf.trim(), tools: toolLog.slice(before), staged: stagedThisTurn, resumed: sawAskMore })
       if (VERBOSE) {
         console.log(`\n  👤 ${user}`)
         console.log(`  🤖 ${replyBuf.trim() || '(无回复)'}`)
         for (const t of toolLog.slice(before)) console.log(`  🔧 ${t.name}(${JSON.stringify(t.args)})`)
+        console.log(`  ⏱  两段式: staged=${stagedThisTurn} resumed=${sawAskMore}`)
       }
     }
   } finally {
@@ -424,6 +447,27 @@ function checkForbidden(sc: Scenario, turns: Turn[]): Finding[] {
  * 这是**新工具契约的验收点** —— 工具现在会回 AREA_AMBIGUOUS / AREA_NOT_FOUND，
  * 如果模型无视它继续自信地讲，那这套契约就是白做的。
  */
+/**
+ * 🔴 **两段式必须走完** —— 只说了过渡句就收场,等于当着客户的面把电话挂了。
+ *
+ * 这是两段式作答唯一的失败模式,也是它最该被守住的地方:
+ * Live 层拿到 `pending: true` 之后**必须**接着调 `ask_luna_more`。
+ * 同一个坑之前踩过一次 —— 让 Live 自己先说 filler 再调工具,它说完就不调了
+ * (「买房能拿迪拜身份吗?」→「让我查一下。」→ 沉默)。
+ */
+function checkTwoStageCompleted(sc: Scenario, turns: Turn[]): Finding[] {
+  const out: Finding[] = []
+  for (const t of turns) {
+    if (!t.staged) continue
+    out.push({
+      ok: !!t.resumed,
+      name: `${sc.id} 两段式走完了(念完过渡句要接着取正文)`,
+      detail: t.resumed ? 'ok' : `❌ 只说了「${t.reply.slice(0, 40)}」就收场,没调 ask_luna_more —— 客户被挂在线上`,
+    })
+  }
+  return out
+}
+
 function checkObeyedUncertainty(sc: Scenario, turns: Turn[]): Finding[] {
   const out: Finding[] = []
   for (const t of turns) {
@@ -555,9 +599,45 @@ function checkNoEmptyPromise(sc: Scenario, turns: Turn[]): Finding[] {
  * 现在：不给历史结论，只给真实工具返回，并明确要求「没在工具输出里看到就不许断言」。
  */
 async function judge(sc: Scenario, turns: Turn[]): Promise<{ score: number; verdict: string; handledLimitationWell: boolean }> {
+  /**
+   * 🔴 **截断可以，但绝不能截掉判定所需的东西。**
+   *
+   * 旧版就一行 `JSON.stringify(v).slice(0, 900)`。而**单个项目对象就将近 900 字符**
+   * （id/图片URL/investment_5yr 全在里面），于是裁判**只看得到列表的第一条**。
+   *
+   * 后果是最坏的那种假红灯：Luna 讲了列表里第 2、3 个项目（Serenz、
+   * SAMANA SOUTH HAVEN —— 查库确认真实存在，区域也对），裁判看不到它们，
+   * 判成「凭空捏造数据的严重违规」，1/5。
+   *
+   * **我拿这个假红灯否决了一次 Live 模型升级。** 假红灯不只是没人看，
+   * 它会让人做出错误的决定。
+   *
+   * 现在:①`summary` 完整给（那是 Brain 真正读到的事实来源，本来就不长）；
+   * ②所有实体名单独抽出来放最前面，永不被截；③原始 JSON 才截断。
+   */
+  const collectNames = (v: any, out: string[] = [], depth = 0): string[] => {
+    if (!v || depth > 6 || out.length >= 40) return out
+    if (Array.isArray(v)) { v.forEach(x => collectNames(x, out, depth + 1)); return out }
+    if (typeof v === 'object') {
+      for (const k of ['project_name', 'name', 'area_name', 'developer', 'matched', 'title']) {
+        const val = (v as any)[k]
+        if (typeof val === 'string' && val.trim() && !out.includes(val)) out.push(val)
+      }
+      Object.values(v).forEach(x => collectNames(x, out, depth + 1))
+    }
+    return out
+  }
   const brief = (v: any) => {
-    const s = JSON.stringify(v)
-    return s && s.length > 900 ? s.slice(0, 900) + '…(截断)' : s
+    const summary = v?.summary
+    const inner = v?.result !== undefined ? v.result : v
+    const names = collectNames(inner)
+    const s = JSON.stringify(inner)
+    const body = s && s.length > 700 ? s.slice(0, 700) + '…(截断)' : s
+    return (
+      (summary ? `\n  SUMMARY: ${summary}` : '') +
+      (names.length ? `\n  ENTITIES RETURNED (complete list, none omitted): ${names.join(' | ')}` : '') +
+      `\n  RAW: ${body}`
+    )
   }
   const convo = turns.map(t =>
     `USER: ${t.user}\n` +
@@ -640,6 +720,7 @@ async function main() {
       ...checkObeyedUncertainty(sc, turns),
       ...checkNumbersGrounded(sc, turns),
       ...checkNoEmptyPromise(sc, turns),
+      ...checkTwoStageCompleted(sc, turns),
     ]
     const j = await judge(sc, turns)
 

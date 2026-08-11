@@ -7,7 +7,7 @@
 
 import { Router } from 'express'
 import { executeTool } from '../services/voice-assistant-tools'
-import { askLuna } from '../services/luna-brain'
+import { askLuna, startAsk, awaitAsk } from '../services/luna-brain'
 
 const router = Router()
 
@@ -29,6 +29,18 @@ router.post('/ask', async (req, res) => {
     return res.status(400).json({ error: 'question is required' })
   }
 
+  /**
+   * **两段式**:秒回一句过渡语让 Luna 立刻开口,正文由 `/ask-more` 取。
+   * 干掉的是开口前那 4-7 秒静默 —— 见 `luna-brain.ts` 的两段式说明。
+   *
+   * 没有 sessionId 就退回单段(拿不回结果),行为与改造前完全一致。
+   */
+  const staged = startAsk({ question, language, sessionId, context })
+  if (staged.pending) {
+    console.log(`[LunaBrain] "${question.slice(0, 60)}" → staged, filler out`)
+    return res.json({ success: true, speech: staged.speech, pending: true, attachments: [] })
+  }
+
   const answer = await askLuna({ question, language, sessionId, context })
 
   console.log(
@@ -39,6 +51,34 @@ router.post('/ask', async (req, res) => {
   )
 
   const { toolLog, ...lightDebug } = answer.debug   // toolLog 只给跑分,别塞进每次语音往返
+
+  res.json({
+    success: true,
+    speech: answer.speech,
+    mapAction: answer.mapAction,
+    attachments: answer.attachments,
+    debug: lightDebug,
+  })
+})
+
+/**
+ * POST /api/voice/tools/ask-more —— 两段式的第二段。
+ *
+ * 客户此刻已经听完了过渡句，**这里不能静默、不能报错、不能 4xx** ——
+ * 那等于当着他的面把电话挂了。`awaitAsk` 保证永远有一句能说的话，
+ * 连「没有在途请求」（Live 层跳过第一段直接调这里）也有兜底。
+ */
+router.post('/ask-more', async (req, res) => {
+  const { sessionId, language } = req.body || {}
+  const answer = await awaitAsk(sessionId, language)
+
+  console.log(
+    `[LunaBrain] resume → ${answer.debug.ms}ms, tools=[${answer.debug.toolsUsed.join(',')}]` +
+    (answer.debug.outOfScope ? ` scope=${answer.debug.outOfScope}` : '') +
+    (answer.debug.degraded ? ' DEGRADED' : '')
+  )
+
+  const { toolLog, ...lightDebug } = answer.debug
 
   res.json({
     success: true,

@@ -262,6 +262,102 @@ function compact(result: unknown): unknown {
 }
 
 /**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  两段式作答 —— 干掉开口前那 4-7 秒静默
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * 拆层换来了质量，代价是延迟：Brain 要两轮推理，客户听到的是 4-7 秒纯静默。
+ * ChatGPT 语音是边想边说的，静默在对比中直接翻译成「这玩意儿卡了」。
+ *
+ * **一次失败的尝试**（别再走一遍）：让 Live 层自己先说一句「让我查一下」再调
+ * 工具。做不到 —— 2.5 native audio 一开口说 filler 就把这一回合当说完了，
+ * **一次工具都不调**，客户被挂在那儿。见 `voice-token.ts` 里那条禁令。
+ *
+ * **现在的做法绕开了那个失败模式**：过渡句不再由 Live 自己想，而是
+ * **后端秒回一句 speech，Live 只负责念**。念完它再调 `ask_luna_more` 取正文。
+ * 「先说再调工具」它做不到，「念完一句再调下一个工具」是它每天都在做的事。
+ *
+ * 时序：
+ *   ask_luna      → <50ms 返回过渡句 + pending:true，同时后台启动 Brain
+ *   Live 念过渡句 → 约 1.5-2 秒语音，这段时间 Brain 在算
+ *   ask_luna_more → await 剩下的（通常只剩 2-4 秒）
+ *
+ * 感知上：**几乎立刻开口**，而不是先死寂四秒。
+ */
+const pendingAsks = new Map<string, { at: number; p: Promise<BrainAnswer> }>()
+const PENDING_TTL_MS = 60 * 1000
+
+/**
+ * 过渡句 —— **写死的模板，不过模型**。
+ *
+ * 故意不用 LLM 生成:①再快也要 300ms,而这里要的是"立刻";②过渡句是唯一
+ * 不经 Brain 校验就出口的话,让模型写就等于开了个幻觉后门。写死的句子
+ * **不可能承诺结果**,这正是当初禁 filler 的原因(「这就带你去 Marina」——
+ * 可能根本找不到)。
+ */
+function fillerFor(question?: string, language?: string): string {
+  /**
+   * ⚠️ **语言优先看用户原话,不看前端传的 `language`。**
+   *
+   * `language` 是**界面语言**,不等于他正在说的语言 —— 中文 UI 的经纪在给
+   * 英语客户演示是常态。实测踩到过:用户问「帮我查一下100万左右的房产」,
+   * 过渡句出来是 "Let me pull that up." 然后正文是中文 —— **一句话里两种语言**,
+   * 正是 [[ui-language-leaks-three-layers]] 那类问题。
+   *
+   * 过渡句是唯一不经模型的一句话,所以语言必须在这里判对,没有第二次机会。
+   */
+  const q = question || ''
+  if (/[一-鿿]/.test(q)) return '好，我看一下。'
+  if (/[؀-ۿ]/.test(q)) return 'لحظة، دعني أتحقق من ذلك.'
+  if (/[Ѐ-ӿ]/.test(q)) return 'Секунду, сейчас посмотрю.'
+  // 拉丁字母分不出语种 —— 这时才退回界面语言。
+  if (language?.startsWith('zh')) return '好，我看一下。'
+  if (language?.startsWith('fr')) return 'Un instant, je regarde ça.'
+  if (language?.startsWith('es')) return 'Un momento, déjame ver.'
+  return 'Let me pull that up.'
+}
+
+/** 启动一次后台推理并立刻返回过渡句。 */
+export function startAsk(ask: BrainAsk): { speech: string; pending: boolean } {
+  const key = ask.sessionId
+  if (!key) {
+    // 没有 sessionId 就没法取回结果 —— 退回单段模式，调用方会直接 await。
+    return { speech: '', pending: false }
+  }
+  const now = Date.now()
+  for (const [k, v] of pendingAsks) if (now - v.at > PENDING_TTL_MS) pendingAsks.delete(k)
+
+  // askLuna 自己不抛（失败走降级话术），catch 只是防御性的：
+  // 一个没人 await 的 rejected promise 会让 Node 打 unhandled rejection。
+  const p = askLuna(ask)
+  p.catch(() => {})
+  pendingAsks.set(key, { at: now, p })
+
+  counter('luna.brain.two_stage', { stage: 'start' }).inc()
+  return { speech: fillerFor(ask.question, ask.language), pending: true }
+}
+
+/**
+ * 取回正文。**永远不抛、永远有话说** —— 这是客户已经听过过渡句之后的第二段，
+ * 在这里静默或报错，等于当着客户的面把电话挂了。
+ */
+export async function awaitAsk(sessionId: string | undefined, language?: string): Promise<BrainAnswer> {
+  const entry = sessionId ? pendingAsks.get(sessionId) : undefined
+  if (!entry) {
+    // 没有在途请求 —— Live 层可能在没调 ask_luna 的情况下直接调了 ask_luna_more。
+    counter('luna.brain.two_stage', { stage: 'orphan' }).inc()
+    return {
+      speech: fallbackSpeech(language),
+      attachments: [],
+      debug: { toolsUsed: [], toolLog: [], rounds: 0, ms: 0, clarifying: false, degraded: true },
+    }
+  }
+  pendingAsks.delete(sessionId!)
+  counter('luna.brain.two_stage', { stage: 'resume' }).inc()
+  return entry.p
+}
+
+/**
  * 大脑主入口。**不抛异常** —— 语音链路上任何抛出都会变成一段死寂。
  * 失败一律走降级话术。
  */

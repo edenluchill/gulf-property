@@ -140,6 +140,18 @@ const voiceTools = [
         }
       },
       {
+        /**
+         * 两段式作答的**第二段**。`ask_luna` 秒回一句过渡语让 Luna 立刻开口
+         * (干掉开口前 4-7 秒静默),正文在这里取。
+         *
+         * ⚠️ 它没有参数是**故意的** —— 后端按 sessionId 认领在途请求。
+         * 让模型传参只会给它一个填错的机会。
+         */
+        name: 'ask_luna_more',
+        description: 'Call this IMMEDIATELY after you finish saying an ask_luna reply that came back with "pending": true. That reply was only a holding line — the real answer is still being prepared and this is how you collect it. It takes no arguments. If you skip this call, the customer hears you say you are looking something up and then nothing at all.',
+        parameters: { type: Type.OBJECT, properties: {} }
+      },
+      {
         // 纯写入,不查任何数据 —— 多绕一层 Brain 没有意义,留在前端直连。
         name: 'capture_contact',
         description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
@@ -563,9 +575,10 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
      * 先说一句不承诺结果的等待语。这是**故意**用一点延迟换掉一整类
      * 「自信地说错」和「反复说找不到」。
      */
-    if (toolName === 'ask_luna') {
+    if (toolName === 'ask_luna' || toolName === 'ask_luna_more') {
+      const more = toolName === 'ask_luna_more'
       try {
-        const response = await fetch(`${API_BASE}/api/voice/tools/ask`, {
+        const response = await fetch(`${API_BASE}/api/voice/tools/${more ? 'ask-more' : 'ask'}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -594,7 +607,17 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        voiceDebugLogger.logToolCallEnd(callId, { speech: data.speech, ...data.debug })
+        voiceDebugLogger.logToolCallEnd(callId, { speech: data.speech, pending: data.pending, ...data.debug })
+
+        // 第一段只是过渡句 —— 把 pending 原样交回,Live 层的 prompt 靠它决定
+        // 要不要接着调 ask_luna_more。**丢了这个字段 Luna 就会说完
+        // 「我看一下」然后再也不出声。**
+        if (data.pending) {
+          // 过渡句期间保持「查询中...」的视觉反馈,别让气泡先清掉
+          setToolStatus(getToolDisplayName('ask_luna'))
+          return { speech: data.speech, pending: true }
+        }
+
         // speech 是**最终稿**。字段名就叫 speech,配合 Live 层 prompt 的
         // 「照念不改」—— 换成 result/data 之类的名字模型会当成素材去改写。
         return { speech: data.speech }
