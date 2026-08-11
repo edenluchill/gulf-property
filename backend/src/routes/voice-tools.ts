@@ -148,8 +148,16 @@ router.post('/ask-more', async (req, res) => {
 })
 
 /**
- * POST /api/voice/tools/execute
- * Execute a tool and return the result
+ * POST /api/voice/tools/execute —— 直接执行一个工具，**不过 Brain**。
+ *
+ * ⚠️ **Luna 对话已经不走这条路了**（2026-08-10 起所有工具调用统一过 `/ask`，
+ * 否则就绕开了 Brain 的全部护栏：数据边界 / 诚实规则 / 澄清出路）。
+ *
+ * 留着是因为 **luna-tour 的实时语音还在用它**
+ * （`frontend/src/luna-tour/useTourLive.ts`）—— 那是另一条产品线：
+ * 预生成导览里的问答，剧本已经限定了范围，没有「凭空发明能力」的风险。
+ *
+ * **别把 Luna 对话再接回这里。** `check-voice-tools.mjs` 会拦。
  */
 router.post('/execute', async (req, res) => {
   try {

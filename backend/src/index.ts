@@ -22,7 +22,6 @@ import dubaiTransportRouter from './routes/dubai-transport'
 import customRoutesRouter from './routes/custom-routes'
 import geocodeRouter from './routes/geocode'
 import routingRouter from './routes/routing'
-import voiceChatRouter, { initVoiceChatWebSocket } from './routes/voice-chat'
 import collabRouter, { initCollabWebSocket } from './routes/collab'  // 实时协作带看 (isolated; see docs/luna-collaborative-tour-spec.md)
 import voiceRtcRouter from './routes/voice-rtc'  // Agora 应用内语音 token + 用量额度
 import agentsRouter from './routes/agents'  // 经纪准入审批
@@ -165,7 +164,6 @@ app.use('/api/transport', dubaiTransportRouter)  // Dubai transport (Metro, Tram
 app.use('/api/custom-routes', customRoutesRouter)  // Custom routes and stops (replaces transport)
 app.use('/api/geocode', geocodeRouter)  // Google Maps geocoding API proxy
 app.use('/api/routing', routingRouter)  // 路网测距(自建 OSRM,容器名 osrm:5000,不走公网)
-app.use('/api/voice-chat', voiceChatRouter)  // Voice chat health check (legacy)
 app.use('/api/voice', voiceTokenRouter)  // Ephemeral token generation
 app.use('/api/voice/tools', voiceToolsRouter)  // Tool execution
 app.use('/api/voice/debug', voiceDebugRouter)  // Debug logs (dev only)
@@ -224,7 +222,6 @@ const server = app.listen(PORT, async () => {
   await primeJwks()
 
   // Initialize WebSocket server for voice chat
-  initVoiceChatWebSocket(server)
 
   // Initialize WebSocket server for collab tour (co-presence) — same http server, path /api/collab
   initCollabWebSocket(server)
