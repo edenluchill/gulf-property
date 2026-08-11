@@ -90,6 +90,18 @@ const BOUNDARIES: Boundary[] = [
       'which is what determines how much cash they actually need up front',
   },
   {
+    // 黄金签证是买房的**核心动机**之一,一刀切拒绝就是丢客户;乱答是法律风险。
+    // 所以这条的 have_instead 特别重要:承认边界,但把话头接回我们能做的事。
+    id: 'residency_visa',
+    patterns: /\b(golden visa|residency|residence (visa|permit)|investor visa|citizenship|green visa)\b|黄金签证|迪拜身份|居留(权|签证)|投资移民|拿身份|绿卡/i,
+    lacks:
+      'we do not hold official immigration rules and must not give legal or visa advice — ' +
+      'eligibility is set by the GDRFA and changes',
+    have_instead:
+      'the property side of it: we can filter projects at the investment levels people usually ask about for this, ' +
+      'and show the real transaction prices at that level — then their agent or an immigration lawyer confirms eligibility',
+  },
+  {
     id: 'live_inventory',
     patterns: /\b(units? (left|remaining|available (right )?now)|real[- ]?time (stock|inventory|availability)|how many left)\b|还剩几套|剩余房源|实时库存|还有没有房/i,
     lacks: 'unit-level availability is a **snapshot**, not a live feed from the developer — it can be out of date',
