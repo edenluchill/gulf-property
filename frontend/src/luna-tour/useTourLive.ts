@@ -18,7 +18,9 @@ import { AudioRecorder, AudioPlayer } from '../hooks/voice-assistant/audioUtils'
 import { API_BASE_URL } from '../lib/config'
 import type { MapTourHandle } from './map/mapTourHandle'
 
-const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
+// 与 backend LIVE_AUDIO 保持一致(tour 的 live 语音走独立 token 端点,
+// 暂未下发 model —— 换模型时这一行要一起改)。
+const GEMINI_MODEL = 'gemini-3.1-flash-live-preview'
 
 export type TourLivePhase = 'idle' | 'connecting' | 'listening' | 'speaking' | 'error'
 

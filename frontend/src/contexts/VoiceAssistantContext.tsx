@@ -21,7 +21,7 @@ import {
 } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { GoogleGenAI, Modality, LiveServerMessage, Type, StartSensitivity, EndSensitivity } from '@google/genai'
+import { GoogleGenAI, Modality, LiveServerMessage, StartSensitivity, EndSensitivity } from '@google/genai'
 import {
   VoicePhase,
   BubbleContent,
@@ -79,7 +79,10 @@ function reportLiveUsage(u: LiveServerMessage['usageMetadata']): void {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
-const GEMINI_MODEL = 'gemini-2.5-flash-native-audio-preview-12-2025'
+// 兜底值。**真正生效的是后端 /api/voice/token 返回的 model** ——
+// 模型名的单一真相源在 backend/src/services/ai/models.ts 的 LIVE_AUDIO,
+// 这样换模型不用发前端。这里只在 token 没带 model 时用。
+const GEMINI_MODEL_FALLBACK = 'gemini-3.1-flash-live-preview'
 const BUBBLE_FLUSH_MS = 200
 const AUTO_RECONNECT_MAX = 3
 const AUTO_RECONNECT_BASE_MS = 1000
@@ -100,74 +103,23 @@ const getDailyTokens = () => { try { const q = JSON.parse(localStorage.getItem(L
 const setDailyTokens = (n:number) => { try { localStorage.setItem(LUNA_QUOTA_KEY, JSON.stringify({ day: dubaiDayKey(), tokens: Math.max(0, Math.round(n)) })) } catch {} }
 const addDailyTokens = (delta:number) => setDailyTokens(getDailyTokens() + Math.max(0, delta))
 
-// Tool definitions
+// 🔴 **工具声明不再写在前端。**
 //
-// 🔴 **2026-08-10:17 个工具砍到 2 个 —— 这是两层架构的核心改动。**
+// 后端 `/api/voice/token` 随 token 一起下发完整的 23 个声明
+// (`backend/src/services/luna-live-manifest.ts`)。理由见那个文件顶部:
+// **工具的 description 就是模型的能力清单** —— 2026-08-10 我把 17 个具体工具
+// 砍成一个抽象的 `ask_luna`,Live 从「语义匹配」被迫改做「元判断」,
+// 于是它开始不查就自己答(owner 看到的「AI 说能卖二手房」)。
 //
-// 旧版把 17 个工具压给 `gemini-2.5-flash-native-audio-preview`(2.5 世代小号
-// 预览版,**没有 thinking 也配不了**),让它同时负责听、说、打断、选工具、
-// 判断置信度、组织话术。生产数据证明这超纲了:
-//   · 每场对话**平均只调用 1 次工具** —— 它基本不查就开口
-//   · 十场 transcript **只有一场**进入房产话题
-//   · prompt 明令禁止说「抱歉」,session 52 照说不误(**指令跟随已崩的铁证**)
+// 现在 Live 重新看到 get_investment_breakdown / rent_vs_buy / purchase_costs …
+// 但**执行全部走 Brain**:下面的 executeTool 统一拦截,把它想调的工具名
+// 当作**意图信号**转给 `/api/voice/tools/ask`,由 Brain 决定真正调什么。
 //
-// 现在:**Live 只当嘴和耳朵**。所有知识/搜索/分析/产品问题一律走 `ask_luna`
-// → 后端 Brain(gemini-3.5-flash + thinking)选工具、查数据、**写好最终话术**,
-// Live 照念不改。核心不变量:**Live 层永远不生成事实。**
+// 好处:三处声明漂移(前端/后端/跑分)的老毛病到此为止 ——
+// 见 memory `voice-tool-declaration-drift`。
 //
-// 见 `docs/luna-two-layer-spec.md`
-//     `docs/reports/2026-08-10-luna-conversation-quality-audit.md`
-//
-// ⚠️ 工具声明历来在三处漂移(前端/后端/提示词) —— 见 memory `voice-tool-declaration-drift`。
-//    砍到 2 个之后漂移面基本消失:后端那 22 个执行器现在只有 Brain 会看见。
-const voiceTools = [
-  {
-    functionDeclarations: [
-      {
-        /**
-         * **唯一的知识入口。** Live 模型自己什么都不知道 —— 它看不见地图,
-         * 不认识任何项目/区域/价格/收益率/功能。全部问这里。
-         */
-        name: 'ask_luna',
-        description: 'The ONLY way you can answer anything real. You have NO knowledge of your own: you cannot see the map, and you do not know a single project, area, price, yield, distance, or product feature. Call this for EVERY question that is not pure greeting or small talk — property, places, prices, investment returns, comparisons, "is X any good", and questions about how to use this product. Pass the customer\'s words through VERBATIM; do not clean them up, do not translate them, do not guess at a place name. It returns a "speech" field — say exactly that, as written: never add a number, a project name, or a claim of your own on top of it.',
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            question: { type: Type.STRING, description: "The customer's question in their own words, verbatim. Speech recognition mangles Dubai place names constantly — pass what you heard, unedited. The analyst runs a proper matcher and reports its own confidence." },
-            context: { type: Type.STRING, description: 'Optional: what the conversation has been about so far, if this question only makes sense with it (e.g. "was asking about the 2-bed in Marina").' }
-          },
-          required: ['question']
-        }
-      },
-      {
-        /**
-         * 两段式作答的**第二段**。`ask_luna` 秒回一句过渡语让 Luna 立刻开口
-         * (干掉开口前 4-7 秒静默),正文在这里取。
-         *
-         * ⚠️ 它没有参数是**故意的** —— 后端按 sessionId 认领在途请求。
-         * 让模型传参只会给它一个填错的机会。
-         */
-        name: 'ask_luna_more',
-        description: 'Call this IMMEDIATELY after you finish saying an ask_luna reply that came back with "pending": true. That reply was only a holding line — the real answer is still being prepared and this is how you collect it. It takes no arguments. If you skip this call, the customer hears you say you are looking something up and then nothing at all.',
-        parameters: { type: Type.OBJECT, properties: {} }
-      },
-      {
-        // 纯写入,不查任何数据 —— 多绕一层 Brain 没有意义,留在前端直连。
-        name: 'capture_contact',
-        description: "Save the customer's contact details so the agent can follow up with full property info. Call this ONLY after the customer has shown clear interest and agreed to share contact (e.g. they said yes to receiving details on WhatsApp). Ask naturally; never pressure. Provide whatever details the customer gave.",
-        parameters: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Customer's name if given" },
-            whatsapp: { type: Type.STRING, description: 'WhatsApp number with country code, e.g. +971501234567' },
-            phone: { type: Type.STRING, description: 'Phone number if different from WhatsApp' },
-            email: { type: Type.STRING, description: 'Email address if given' }
-          }
-        }
-      }
-    ]
-  }
-]
+// ⚠️ 只有 capture_contact 仍在前端直连(纯写库,不查数据),它也来自同一份 manifest。
+// (capture_contact 在 executeTool 里按名字直接分支处理,不需要单独的集合)
 
 export interface TextMsg { id: string; role: 'user' | 'assistant'; text: string; attachment?: MessageAttachment }
 
@@ -292,6 +244,12 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
   // 后端只有靠这个才看得见它们。
   const turnAskedBrainRef = useRef<boolean>(false)
   const turnToolsRef = useRef<string[]>([])
+  /** 后端下发的 Live 模型名（换模型不用发前端）。 */
+  const liveModelRef = useRef<string>('')
+  /** 后端下发的工具声明（唯一真相源，随 /api/voice/token 返回）。 */
+  const liveToolsRef = useRef<Array<{ name: string; description: string; parameters?: unknown }>>([])
+  /** 这一轮客户实际说的话 —— 转给 Brain 当 question，比模型的转述可靠。 */
+  const turnUserSaidRef = useRef<string>('')
   const turnUserLastTsRef = useRef<number>(0)
   const turnReplyLoggedRef = useRef<boolean>(false)
 
@@ -510,6 +468,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       //  压根没接上。**加任何新的输入形态都要问一句:它进 transcript 了吗?**)
       voiceDebugLogger.logUserMessage(trimmed)
       voiceDebugLogger.finalizeUserMessage()
+      turnUserSaidRef.current = trimmed   // 打字模式没有转写回调,手动交给 Brain
 
       // Send the typed turn; the reply (text + tool map actions + card) arrives
       // asynchronously through handleMessage, and textPending clears on turnComplete.
@@ -571,16 +530,18 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
     }
 
     /**
-     * 🧠 **两层架构的接缝** —— Live 层唯一的知识入口。
+     * 🧠 **所有工具调用的统一出口** —— 无论 Live 想调哪个，都到 Brain 这里。
      *
-     * 后端 Brain(gemini-3.5-flash + thinking)选工具、查数据、**写好话术**,
-     * 这里把 `speech` 原样交回给 Live 模型念。见 `docs/luna-two-layer-spec.md`。
+     * Live 看到完整的 23 个声明(后端 manifest 下发)是为了**知道自己能干什么**
+     * —— 那是它决定「该查」的唯一线索。但它没有数据、只按名字挑，**选错是常态**。
+     * 所以它选的工具在这里降级成 `intendedTool`(意图信号),由 Brain 决定
+     * 真正调什么、怎么组织话术。护栏(数据边界/诚实/澄清出路)全在 Brain。
      *
-     * 它比旧的单工具调用慢(~2s vs ~150ms) —— Live 层的 prompt 因此要求
-     * 先说一句不承诺结果的等待语。这是**故意**用一点延迟换掉一整类
-     * 「自信地说错」和「反复说找不到」。
+     * `userSaid` 比模型填的参数可靠 —— 那是客户的原话，不是模型的转述。
+     *
+     * 见 `docs/luna-tool-routing-spec.md`。
      */
-    if (toolName === 'ask_luna' || toolName === 'ask_luna_more') {
+    {
       const more = toolName === 'ask_luna_more'
       turnAskedBrainRef.current = true
       turnToolsRef.current = [...turnToolsRef.current, toolName]
@@ -589,10 +550,14 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            question: params?.question,
+            // 客户原话优先；转写没拿到时退回模型填的 question 参数。
+            question: turnUserSaidRef.current?.trim() || params?.question || params?.area_name || params?.area || '',
+            intendedTool: toolName,
+            intendedParams: params || {},
             context: params?.context,
             language: currentLanguage,
             sessionId: voiceDebugLogger.currentSessionId,
+            visitorId: visitorId(),
           })
         })
         const data = await response.json()
@@ -641,41 +606,9 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    try {
-      const response = await fetch(`${API_BASE}/api/voice/tools/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolName, params })
-      })
-      const data = await response.json()
-
-      if (data.mapAction) {
-        handleMapAction(data.mapAction)
-      }
-
-      // Create attachment from tool result (shared with the text path — one mapping).
-      if (data.result) {
-        const attachment = buildBubbleAttachment(toolName, data.result, params)
-        if (attachment) pendingAttachmentRef.current = attachment
-
-        // navigate_to_project also auto-opens the detail page after the fly animation.
-        if (toolName === 'navigate_to_project' && data.result?.projectId) {
-          setTimeout(() => {
-            handleMapAction({ type: 'navigate', path: `/project/${data.result.projectId}` })
-          }, 2500)
-        }
-      }
-
-      voiceDebugLogger.logToolCallEnd(callId, data.result)
-      // Don't clear toolStatus here — keep thinking bubble visible
-      // until first assistant text arrives (cleared in handleMessage)
-      return data
-    } catch (err) {
-      console.error('[Voice] Tool execution error:', err)
-      voiceDebugLogger.logToolCallEnd(callId, null, String(err))
-      setToolStatus(null) // Clear on error only
-      return { success: false, error: 'Tool execution failed' }
-    }
+    // 到这里是不可达的 —— 上面的块无条件返回。
+    // 旧的 `/api/voice/tools/execute` 直连路径已删:任何工具都必须过 Brain,
+    // 否则那一路的返回就绕开了全部护栏(数据边界/诚实规则/澄清出路)。
   }, [getToolDisplayName, handleMapAction, currentLanguage])
 
   // Handle Gemini messages
@@ -760,6 +693,8 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           }
           turnUserLastTsRef.current = performance.now()
           userTextAccumRef.current += text
+          // 客户原话 —— 转给 Brain 当 question。比模型转述的参数可靠得多。
+          turnUserSaidRef.current = userTextAccumRef.current
           setUserTranscript(userTextAccumRef.current.trim())
           voiceDebugLogger.logUserMessage(text)
         }
@@ -836,6 +771,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         }
         turnAskedBrainRef.current = false
         turnToolsRef.current = []
+        turnUserSaidRef.current = ''
 
         if (textModeRef.current) {
           // Finalize the current assistant message (text already streamed in).
@@ -885,86 +821,27 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
         try {
           const result = await executeTool(fc.name, fc.args || {}, callId)
 
-          let detailedOutput = result.summary || 'Action completed.'
-
-          if (fc.name === 'search_projects' && result.result?.projects?.length > 0) {
-            const projectList = result.result.projects.slice(0, 6).map((p: any, i: number) => {
-              let info = `${i + 1}. "${p.project_name}" [ID: ${p.id}] [STATUS: ${p.status || 'unknown'}] in ${p.area || 'Dubai'}`
-              if (p.status === 'sold-out') info += ` ⚠️SOLD-OUT(已售罄,不可购买)`
-              if (p.rental_yield_pct) info += ` yield: ${parseFloat(p.rental_yield_pct).toFixed(1)}%`
-              if (p.payback_years) info += ` payback: ${parseFloat(p.payback_years).toFixed(0)}yr`
-              if (p.investment_5yr) {
-                const inv = p.investment_5yr
-                info += ` 5yr_profit: ${inv.total_profit_5yr} (${inv.annualized_return_pct}%/yr)`
-              }
-              // Unit types in budget
-              if (p.unit_types_in_budget?.length > 0) {
-                const units = p.unit_types_in_budget.map((u: any) =>
-                  `${u.category}(${Math.round(u.min_area_sqft)}sqft,AED${(u.min_price/1000000).toFixed(2)}M)`
-                ).join(', ')
-                info += ` UNITS_IN_BUDGET: ${units}`
-              }
-              if (p.nearest_metro) {
-                info += ` METRO: ${p.nearest_metro.name}(${(p.nearest_metro.distance_m/1000).toFixed(1)}km)`
-              }
-              return info
-            }).join('\n')
-            detailedOutput = `${result.summary}\n\nPROJECT LIST (use these IDs for navigation):\n${projectList}`
-          }
-
-          if (fc.name === 'navigate_to_project' && result.result?.unitTypes?.length > 0) {
-            const unitList = result.result.unitTypes.map((u: any) =>
-              `${u.category}: ${Math.round(u.area_sqft)}sqft, AED${(u.price/1000000).toFixed(2)}M, ${u.bedrooms}bed/${u.bathrooms}bath`
-            ).join('\n')
-            detailedOutput += `\n\nAVAILABLE UNIT TYPES:\n${unitList}\n\nTell the customer which unit types fit their needs and budget.`
-          }
-
-          if (fc.name === 'navigate_to_project' && result.result?.investment_5yr) {
-            const inv = result.result.investment_5yr
-            detailedOutput += `\n\n5YR INVESTMENT (unit price AED${(inv.purchase_price/1000000).toFixed(2)}M): rental=${Math.round(inv.rental_income_5yr/10000)}万, appreciation=${Math.round(inv.appreciation_5yr/10000)}万, total_profit=${Math.round(inv.total_profit_5yr/10000)}万, annualized=${inv.annualized_return_pct}%/yr. An investment chart is displayed. Explain the breakdown to the customer.`
-          }
-
-          if (fc.name === 'navigate_to_project' && result.result?.nearbyPOIs?.length > 0) {
-            const pois = result.result.nearbyPOIs.map((p: any) =>
-              `[${p.category}] ${p.name}(${(p.distance_m/1000).toFixed(1)}km)`
-            ).join(', ')
-            detailedOutput += `\n\nNEARBY AMENITIES: ${pois}. Tell customer about nearby facilities — metro for transport, hospitals for healthcare, schools for families, malls for lifestyle.`
-          }
-
-          if (fc.name === 'navigate_to_project' && result.result?.nearbyLandmarks?.length > 0) {
-            const landmarks = result.result.nearbyLandmarks.map((l: any) =>
-              `${l.name}(${l.landmark_type}, ${(l.distance_m/1000).toFixed(1)}km)`
-            ).join(', ')
-            detailedOutput += `\n\nNEARBY LANDMARKS: ${landmarks}. Mention key landmarks to help customer understand the location.`
-          }
-
-          if (fc.name === 'navigate_to_project' && (result.result?.areaYieldPct || result.result?.areaGrowthPct)) {
-            detailedOutput += `\n\nAREA METRICS: yield=${result.result.areaYieldPct?.toFixed(1) || 'N/A'}%, growth=${result.result.areaGrowthPct?.toFixed(1) || 'N/A'}%. Mention the area's investment performance.`
-          }
-
-          if (fc.name === 'get_area_info') {
-            if (result.result?.metrics) {
-              const m = result.result.metrics
-              const yieldPct = m.rental_yield_pct ? parseFloat(m.rental_yield_pct).toFixed(1) : 'N/A'
-              const growthPct = m.price_growth_pct ? parseFloat(m.price_growth_pct).toFixed(1) : 'N/A'
-              detailedOutput = `${result.summary}\n\nMETRICS: rental_yield=${yieldPct}%, price_growth=${growthPct}%, transactions=${m.sales_transaction_count || 'N/A'}`
-            }
-            if (result.result?.nearby_benchmarks?.length > 0) {
-              const benchmarks = result.result.nearby_benchmarks.map((b: any) =>
-                `${b.name}: yield=${parseFloat(b.rental_yield_pct).toFixed(1)}%, growth=${parseFloat(b.price_growth_pct).toFixed(1)}%`
-              ).join('; ')
-              detailedOutput += `\n\nNEARBY BENCHMARKS: ${benchmarks}`
-            }
-            if (result.result?.investment_5yr) {
-              const inv = result.result.investment_5yr
-              detailedOutput += `\n\n5YR INVESTMENT: rental_income=${inv.rental_income_5yr}, appreciation=${inv.appreciation_5yr}, total_profit=${inv.total_profit_5yr}, annualized=${inv.annualized_return_pct}%`
-            }
-          }
+          /**
+           * 🔴 **交回给 Live 的只有 speech,不再有原始数据。**
+           *
+           * 这里原本有 80 行「把工具结果加工成 detailedOutput 喂回模型」的逻辑
+           * (项目列表/户型/POI/地标/区域指标…),那是**拆层前**的做法:
+           * 模型自己读数据、自己组织话术。
+           *
+           * 两层架构下那 80 行是**幻觉的来源** —— Brain 已经写好了话术,
+           * 再把原始数字塞回去,等于请 Live 再创作一遍。它就是这么开始
+           * 自己编项目名和收益率的。
+           *
+           * 现在契约只有一条:**speech 照念。**
+           */
+          const spoken = (result as { speech?: string })?.speech
+            || (result as { summary?: string })?.summary
+            || 'Action completed.'
 
           functionResponses.push({
             id: callId,
             name: fc.name,
-            response: { output: detailedOutput }
+            response: { output: spoken }
           })
         } catch (toolError) {
           console.error('[Voice] Tool execution failed:', toolError)
@@ -1108,6 +985,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
 
       voiceDebugLogger.logTokenFetch(tokenFetchStart)
       systemInstructionRef.current = tokenData.systemInstruction
+      if (typeof tokenData.model === 'string' && tokenData.model) liveModelRef.current = tokenData.model
+      // 工具声明的唯一真相源 —— 后端 manifest。前端不再硬编码。
+      if (Array.isArray(tokenData.tools) && tokenData.tools.length) {
+        liveToolsRef.current = tokenData.tools
+      }
 
       const connectStart = Date.now()
       voiceDebugLogger.log('WEBSOCKET_CONNECT_START')
@@ -1118,7 +1000,7 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
       })
 
       const session = await ai.live.connect({
-        model: GEMINI_MODEL,
+        model: liveModelRef.current || GEMINI_MODEL_FALLBACK,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -1156,7 +1038,11 @@ export function VoiceAssistantProvider({ children }: { children: ReactNode }) {
           systemInstruction: {
             parts: [{ text: systemInstructionRef.current }]
           },
-          tools: voiceTools as any,
+          // 后端下发的完整清单(23 个)。拿不到就退化成空 —— 宁可 Luna 说"我查一下"
+          // 也不能让它以为自己什么都不用查。
+          tools: liveToolsRef.current.length
+            ? [{ functionDeclarations: liveToolsRef.current as any }]
+            : undefined,
           // Survive WebSocket drops WITH full context: the server sends resumption
           // handles (captured in handleMessage); on reconnect we pass the latest so
           // Luna remembers the conversation instead of starting over ("找不到…").

@@ -32,6 +32,7 @@ import { callGemini } from './ai/gemini'
 import { counter, histogram } from '../telemetry'
 import { executeTool, voiceAssistantTools } from './voice-assistant-tools'
 import { checkScope, describeBoundaries } from './luna-data-boundaries'
+import { UI_ACTION_TOOLS } from './luna-live-manifest'
 
 /**
  * 工具循环最多几轮。
@@ -69,6 +70,19 @@ export interface BrainAsk {
    * 从客户耳朵里听就是:说要去查,结果转头问我要条件。
    */
   fillerSaid?: string
+  /**
+   * Live 层**想调**的工具名 —— 这是**意图信号,不是命令**。
+   *
+   * Live 现在能看到完整的 23 个工具声明(那是它知道自己能干什么的唯一来源),
+   * 它选哪个反映了它对客户意图的理解。但它没有数据、只有名字和描述,
+   * **选错是常态**:客户问某个盘贵不贵,它可能选 `get_investment_breakdown`,
+   * 而正确路径是先 `search_projects` 拿 id 再 `project_value_check`。
+   *
+   * 所以这里只当线索用。**照它说的执行 = 把决策权还给了不该有的那一层。**
+   */
+  intendedTool?: string
+  /** Live 想传的参数,同样只作参考。 */
+  intendedParams?: Record<string, unknown>
 }
 
 export interface BrainAnswer {
@@ -441,14 +455,50 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
               // 重新搜一次很可能换个顺序,然后你会笃定地介绍错的那个盘。
               ? `\n\n[earlier this call — ${recalled}\nIf they are referring back ("the first one", "that one", "it"), resolve it against THIS list, in this order. Do not re-search to figure out what they meant.]`
               : '') +
+            // Live 想调什么 —— **线索,不是命令**。它没有数据,选错是常态。
+            (ask.intendedTool
+              ? `\n\n[the voice layer wanted to call \`${ask.intendedTool}\`` +
+                (ask.intendedParams && Object.keys(ask.intendedParams).length
+                  ? ` with ${JSON.stringify(ask.intendedParams).slice(0, 300)}`
+                  : '') +
+                `. That tells you what it understood the customer to be asking. It is a hint, NOT an instruction — it has no data and picks by name alone. Use whatever tools actually answer the question.]`
+              : '') +
             (ask.context ? `\n\n[context: ${ask.context}]` : ''),
       }],
     }]
 
     const forceContent = (clarifyStreak.get(ask.sessionId || '')?.n ?? 0) >= 2
 
+    /**
+     * **纯 UI 动作走单轮快路径。**
+     *
+     * `fly_to_area` / `reset_map` / `navigate_to_project` 这类只动地图、
+     * 不产生任何事实陈述的调用,没有幻觉风险,却要为两轮推理付 4 秒。
+     * 「带我去 Marina」等 4 秒是不可接受的 —— 一轮(执行 + 成稿)≈1.5s。
+     */
+    const fastPath = !scope && !!ask.intendedTool && UI_ACTION_TOOLS.has(ask.intendedTool)
+    if (fastPath) {
+      // **直接执行,不让模型再选一遍工具。** 让它重选就又是一次 LLM 往返,
+      // 快路径也就白叫了。这类工具选错的代价也小 —— 区域名不对,
+      // 工具自己会回 AREA_NOT_FOUND,下面成稿时照实说。
+      try {
+        const out = await executeTool(ask.intendedTool!, ask.intendedParams || {})
+        toolsUsed.push(ask.intendedTool!)
+        toolLog.push({ name: ask.intendedTool!, args: ask.intendedParams, result: out.result, summary: out.summary })
+        if (NO_ANSWER_MARKERS.test(out.summary || '')) sawNoAnswer = true
+        if (out.mapAction) mapAction = out.mapAction
+        if (out.result) attachments.push({ toolName: ask.intendedTool!, result: out.result, params: ask.intendedParams })
+        contents.push({
+          role: 'user',
+          parts: [{ text: `[${ask.intendedTool} ran] ${out.summary}\n\nNow say one short line to the customer about what they're seeing. No more tools.` }],
+        })
+      } catch {
+        contents.push({ role: 'user', parts: [{ text: `[${ask.intendedTool} failed] Say one short line asking them to try again. No more tools.` }] })
+      }
+    }
+
     let speech = ''
-    for (let round = 1; round <= MAX_ROUNDS; round++) {
+    for (let round = 1; round <= (fastPath ? 0 : MAX_ROUNDS); round++) {
       rounds = round
       if (Date.now() - t0 > BUDGET_MS) break
 

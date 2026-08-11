@@ -22,8 +22,20 @@ export const FLASH = 'gemini-3.5-flash'
 export const FLASH_LITE = 'gemini-3.1-flash-lite'
 /** 复杂推理。无免费额度。 */
 export const PRO = 'gemini-3.1-pro-preview'
-/** Live API(实时语音对话)。 */
-export const LIVE_AUDIO = 'gemini-2.5-flash-native-audio-preview-12-2025'
+/**
+ * Live API(实时语音对话)。
+ *
+ * 2026-08-10 从 `gemini-2.5-flash-native-audio-preview-12-2025` 升上来。
+ * 音频同价($3/$12 per 1M ≈ $0.005/$0.018 每分钟),延迟 ~200ms(旧 ~300ms),
+ * 噪声处理更好,**ComplexFuncBench Audio 90.8%、比上一代高约 20%** ——
+ * 而工具调用正是我们的痛点。
+ *
+ * ⚠️ 之前有一轮 A/B 判它「更差、会编项目名」,**那个结论作废**:
+ * ①「编项目名」是跑分裁判的假红灯(工具返回被截断,项目其实真实存在);
+ * ② 那次测试的架构是「Live 只有一个抽象工具 ask_luna」—— 条件本身就是错的。
+ * 换模型要重新 A/B:`npx ts-node -T scripts/luna-eval-live.ts --model <id>`。
+ */
+export const LIVE_AUDIO = 'gemini-3.1-flash-live-preview'
 
 /**
  * TTS(把 tour 的旁白合成语音)。按顺序 fallback —— TTS 模型换代很勤,

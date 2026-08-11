@@ -71,10 +71,16 @@ export const PRICES: Record<string, ModelPrice> = {
     provider: 'google', textIn: 1.0, textOut: 20.0, audioOut: 20.0,
     asOf: '2026-08-01', verified: false, note: 'TTS 备用链(最后一档)',
   },
+  'google:gemini-3.1-flash-live-preview': {
+    provider: 'google', textIn: 0.75, textOut: 4.5, audioIn: 3.0, audioOut: 12.0,
+    asOf: '2026-08-10', verified: true,
+    note: 'Luna 实时语音(现役)。核对官方 pricing 页。音频与 2.5 同价,文本略贵。' +
+      'audioOut 是 audioIn 的 4 倍 —— 一通电话的钱主要花在 Luna 自己说话上',
+  },
   'google:gemini-2.5-flash-native-audio-preview-12-2025': {
     provider: 'google', textIn: 0.5, textOut: 2.0, audioIn: 3.0, audioOut: 12.0,
     asOf: '2026-08-01', verified: false,
-    note: 'Luna 实时语音。**audioOut 是文本输出的 6 倍** —— 一通电话比想象中贵',
+    note: '上一代 Luna 实时语音(2026-08-10 已换到 3.1-flash-live)。留价格是因为历史用量还要算钱',
   },
 
   // ── 备选 provider(**没在用,换之前必须核对**)──────────────────────────

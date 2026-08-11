@@ -1,13 +1,18 @@
-// Static consistency guard for Luna's voice tools — runs in ~1s, no secrets.
+// Luna 工具接线的静态守卫 —— ~1s，无密钥，可进 CI / pre-deploy。
 //
-// Luna's tools live in THREE places that drift apart (see memory
-// voice-tool-declaration-drift). When the system prompt tells Gemini to use a tool
-// that the frontend never DECLARED, Gemini can't call it → Luna narrates the action
-// but nothing happens ("光说不做"). This catches that before it ships.
+// ## 2026-08-10 重写：不变量变了
 //
-//   node frontend/scripts/check-voice-tools.mjs
+// 旧版守的是「前端声明 vs 后端执行器 vs 提示词」三方一致。
+// 现在**工具声明只有一个源**：后端 `luna-live-manifest.ts` 随 `/api/voice/token`
+// 下发，前端不再硬编码。所以要守的东西换了：
 //
-// Exit 1 on any hard error so it can gate CI / pre-deploy.
+//   1. 前端**不得**再出现硬编码的工具声明数组（那是漂移回归）
+//   2. manifest 必须从 `voiceAssistantTools` 派生 —— 手写子集会让能力静默消失
+//   3. Live 能看到的工具 ⊆ 有执行器的工具 + 前端直连的工具
+//   4. 两段式必须两端成对（半边接线 = Luna 说完就永远沉默）
+//
+// 背景（为什么 Live 必须看到完整清单）见 `luna-live-manifest.ts` 顶部：
+// **工具的 description 就是模型的能力清单**，砍成一个抽象入口它就不查了。
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -18,15 +23,9 @@ const read = (p) => readFileSync(join(root, p), 'utf8')
 const FE = read('frontend/src/contexts/VoiceAssistantContext.tsx')
 const PROMPT = read('backend/src/routes/voice-token.ts')
 const BE = read('backend/src/services/voice-assistant-tools.ts')
-
-// Tools intercepted in the frontend's executeTool BEFORE the generic
-// /api/voice/tools/execute call — they legitimately have no backend executor case.
-//
-// 2026-08-10 两层架构:`ask_luna` 是 Live 层唯一的知识入口,它走专属端点
-// /api/voice/tools/ask → luna-brain.ts,而不是 executeTool 的 switch。
-// 后端那 22 个执行器现在**只有 Brain 会看见**。
-// `ask_luna_more` 是两段式作答的第二段(/api/voice/tools/ask-more),同样不走 switch。
-const SPECIAL_ROUTED = new Set(['capture_contact', 'ask_luna', 'ask_luna_more'])
+const MANIFEST = read('backend/src/services/luna-live-manifest.ts')
+const BRAIN = read('backend/src/services/luna-brain.ts')
+const TOOLS_ROUTE = read('backend/src/routes/voice-tools.ts')
 
 const names = (re, src) => {
   const out = new Set()
@@ -35,85 +34,78 @@ const names = (re, src) => {
   return out
 }
 
-// Frontend = tools DECLARED to Gemini (only these are callable by the model).
-const declared = names(/name:\s*'([a-z_]+)'/g, FE)
-// Backend = tools with an executor (case 'x':). This is the universe of real tools.
 const executors = names(/case\s*'([a-z_]+)'/g, BE)
-
-// Prompt-referenced = any real tool name that appears as a word in the system prompt.
-const referenced = new Set(
-  [...executors, ...declared].filter((t) => new RegExp(`\\b${t}\\b`).test(PROMPT))
-)
-
 const errors = []
 const warns = []
 
-// HARD: prompt pushes a tool the frontend never declared → Luna will narrate, not act.
-for (const t of referenced) {
-  if (!declared.has(t)) {
-    errors.push(`Prompt references "${t}" but frontend voiceTools does NOT declare it → Gemini can't call it (Luna will "光说不做").`)
-  }
-}
-// HARD: frontend declares a tool with no backend executor → the tool call will fail.
-for (const t of declared) {
-  if (!executors.has(t) && !SPECIAL_ROUTED.has(t)) {
-    errors.push(`Frontend declares "${t}" but backend has NO executor (case '${t}') → tool call will fail.`)
-  }
+// ── 1. 前端不得硬编码工具声明 ───────────────────────────────────────────
+// 指纹：`functionDeclarations` 数组 + 一串 `name: 'xxx'`。
+// 只抓**硬编码数组字面量** `functionDeclarations: [{ name: …`。
+// `functionDeclarations: liveToolsRef.current` 是正确用法，不能误报。
+if (/functionDeclarations\s*:\s*\[\s*\{/.test(FE)) {
+  errors.push(
+    'VoiceAssistantContext.tsx 里又出现了 `functionDeclarations` —— 工具声明必须只来自后端 manifest。' +
+    '前端硬编码一份就是三处漂移的老毛病复发（memory voice-tool-declaration-drift）。'
+  )
 }
 
-// ── 两层架构的新不变量（2026-08-10）──────────────────────────────────────
-//
-// HARD: `ask_luna` 是 Live 层**唯一**的知识入口。它一旦从前端声明里掉了,
-// Luna 就再也拿不到任何数据 —— 而且不会报错,她会安静地开始凭空作答,
-// 正是这次重构要根除的那个失败模式。这条比任何单个工具的漂移都致命。
-if (!declared.has('ask_luna')) {
+// ── 2. manifest 必须从执行器派生，不能手写子集 ──────────────────────────
+if (!/voiceAssistantTools\[0\]\?\.functionDeclarations/.test(MANIFEST)) {
   errors.push(
-    'Frontend does NOT declare "ask_luna" — the Live layer has no way to reach the Brain. ' +
-    'Luna will answer from nothing and sound confident doing it (see docs/luna-two-layer-spec.md).'
+    'luna-live-manifest.ts 不再从 `voiceAssistantTools` 派生声明 —— ' +
+    '手写子集会让一部分能力对 Live 静默消失，而它正是靠 description 才知道自己能干什么。'
   )
 }
-// HARD: Brain 必须拿到全部执行器。它是现在唯一能调工具的地方,
-// 传错常量(比如只传一个子集)会让一部分能力静默消失。
-const BRAIN = read('backend/src/services/luna-brain.ts')
-if (!/tools:\s*\(scope \|\| lastRound\) \? undefined : voiceAssistantTools/.test(BRAIN)) {
-  errors.push(
-    'luna-brain.ts no longer passes `voiceAssistantTools` to the model as expected — ' +
-    'the Brain is the ONLY caller of those executors now; a subset silently removes capabilities.'
-  )
-}
-// HARD: 两段式的两端必须成对存在。只有 ask_luna 没有 ask_luna_more,
-// Luna 会说完「我看一下」就再也不出声 —— 客户被挂在线上,而且不报任何错。
-if (declared.has('ask_luna_more') !== /pending:\s*true/.test(BRAIN)) {
-  errors.push(
-    'Two-stage answering is half-wired: the frontend declares ask_luna_more=' +
-    `${declared.has('ask_luna_more')} but luna-brain.ts returns pending=${/pending:\s*true/.test(BRAIN)}. ` +
-    'Either both or neither — half of it means Luna says the holding line and then goes silent forever.'
-  )
-}
-const TOOLS_ROUTE = read('backend/src/routes/voice-tools.ts')
-if (declared.has('ask_luna_more') && !/['"`]\/ask-more['"`]/.test(TOOLS_ROUTE)) {
-  errors.push('Frontend declares ask_luna_more but backend has no POST /ask-more route → the second half of every answer 404s.')
-}
-// ⚠️ 2026-07-20 删掉了「提示词没提到某工具就告警」这条 SOFT 规则。
-//
-// 它曾经是对的:旧提示词逐个工具枚举触发词("找房/budget → search_projects"…),
-// 漏掉一个工具就等于那个工具事实上不存在。
-//
-// 但提示词已经重写(4000 → ~1030 token),**故意不再枚举触发词** —— 工具该怎么选
-// 是 tool description 的职责,提示词再抄一遍只会跟 description 打架。
-// 于是这条规则开始对 15 个工具同时告警,而每一条都是「按设计如此」。
-//
-// **15 条假警告 = 这个检查从此没人看。** 假红灯比漏报更伤。
-//
-// 真正该守的两条 HARD 规则(提示词点名了但没声明 / 声明了但没执行器)都还在上面。
-// 工具选不对现在由 `backend/scripts/luna-eval-live.ts` 的真实会话来暴露 ——
-// 那才是能证明「模型到底会不会用这个工具」的地方。
 
-console.log(`declared(frontend)=${declared.size}  executors(backend)=${executors.size}  referenced(prompt)=${referenced.size}`)
-if (warns.length) { console.log('\n⚠️  WARNINGS:'); warns.forEach((w) => console.log('  - ' + w)) }
+// ── 3. 前端必须真的用后端下发的 tools ───────────────────────────────────
+if (!/tokenData\.tools/.test(FE)) {
+  errors.push('前端没有读 `tokenData.tools` —— Live 会拿不到任何工具声明，然后凭空作答。')
+}
+if (!/tools:\s*liveToolsRef\.current\.length/.test(FE)) {
+  errors.push('前端 live.connect 没有使用 `liveToolsRef` —— 后端下发的清单没接上。')
+}
+if (!/tools:\s*liveToolManifest\(\)/.test(PROMPT)) {
+  errors.push('/api/voice/token 没有下发 `tools` —— 前端拿不到工具清单。')
+}
+
+// ── 4. 所有工具调用必须过 Brain ─────────────────────────────────────────
+// 前端直连 `/tools/execute` 会绕开全部护栏（数据边界/诚实规则/澄清出路）。
+// 只抓真实的 fetch 调用，注释里提到它不算。
+if (/fetch\([^)]*voice\/tools\/execute/.test(FE)) {
+  errors.push(
+    '前端又在直连 `/api/voice/tools/execute` —— 那条路绕开 Brain 的全部护栏。' +
+    '所有工具调用都必须走 /tools/ask，由 Brain 决定真正调什么。'
+  )
+}
+
+// ── 5. 两段式必须成对 ───────────────────────────────────────────────────
+// 生产事故：start=8 / resume=4，一半的对话说完过渡句就永远沉默。
+const twoStageOn = /process\.env\.LUNA_TWO_STAGE === '1'/.test(TOOLS_ROUTE)
+if (!twoStageOn && /pending:\s*true/.test(TOOLS_ROUTE) && !/LUNA_TWO_STAGE/.test(TOOLS_ROUTE)) {
+  errors.push('两段式无条件返回 pending，但它在真机上会把客户挂断 —— 必须由 LUNA_TWO_STAGE 控制。')
+}
+if (twoStageOn && !/ask_luna_more/.test(MANIFEST)) {
+  warns.push('LUNA_TWO_STAGE 开关存在但 manifest 里没有 ask_luna_more —— 开启它之前必须先把这个工具加进 manifest。')
+}
+if (!/['"`]\/ask-more['"`]/.test(TOOLS_ROUTE)) {
+  warns.push('后端没有 /ask-more 路由；两段式当前不可用（默认关闭，正常）。')
+}
+
+// ── 6. 提示词点名的工具必须真实存在 ─────────────────────────────────────
+const referencedInPrompt = [...executors].filter(t => new RegExp(`\\\`${t}\\\``).test(PROMPT))
+for (const t of referencedInPrompt) {
+  if (!executors.has(t)) errors.push(`提示词点名 "${t}" 但没有执行器。`)
+}
+
+console.log(
+  `executors(backend)=${executors.size}  ` +
+  `manifest=从执行器派生  frontend硬编码=${/functionDeclarations\s*:\s*\[\s*\{/.test(FE) ? '有 ❌' : '无 ✅'}  ` +
+  `两段式=${twoStageOn ? '开关控制' : '未接'}`
+)
+if (warns.length) { console.log('\n⚠️  WARNINGS:'); warns.forEach(w => console.log('  - ' + w)) }
 if (errors.length) {
-  console.log('\n❌ ERRORS:'); errors.forEach((e) => console.log('  - ' + e))
+  console.log('\n❌ ERRORS:'); errors.forEach(e => console.log('  - ' + e))
   console.log(`\nFAILED: ${errors.length} tool-consistency error(s).`)
   process.exit(1)
 }
-console.log('\n✅ PASS: every prompt-referenced tool is declared, every declared tool is executable.')
+console.log('\n✅ PASS: 工具声明单一真相源，所有调用都过 Brain。')
