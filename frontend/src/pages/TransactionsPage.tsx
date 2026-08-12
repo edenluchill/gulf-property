@@ -244,7 +244,7 @@ export default function TransactionsPage() {
       <link rel="canonical" href="https://www.pinzos.com/transactions" />
     </Helmet>
     <div className="container mx-auto px-4 py-3 md:py-6 max-w-6xl">
-      <h1 className="text-xl md:text-2xl font-bold text-slate-800">{t('title')}</h1>
+      <h1 className="text-lg font-bold text-slate-800 md:text-2xl">{t('title')}</h1>
       <p className="mt-1 hidden md:block text-sm text-slate-500">
         {t('description')}
       </p>
@@ -323,9 +323,12 @@ export default function TransactionsPage() {
               <button
                 key={tp}
                 onClick={() => setType(tp)}
-                className={`flex-1 px-3 py-2 md:flex-none ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                className={`flex-1 whitespace-nowrap px-2 py-2 md:flex-none md:px-3 ${type === tp ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               >
-                {t(`saleType.${tp}`)}
+                {/* 手机上「Ready / Resale」会折成两行把整排按钮撑歪 —— 窄屏用短标签。
+                    whitespace-nowrap 是保险:换了 i18n 文案也不会再折。 */}
+                <span className="md:hidden">{t(tp === 'ready' ? 'saleType.readyShort' : `saleType.${tp}`)}</span>
+                <span className="hidden md:inline">{t(`saleType.${tp}`)}</span>
               </button>
             ))}
           </div>

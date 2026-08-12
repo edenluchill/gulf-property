@@ -20,6 +20,10 @@ export function formatMoneyCompact(v: number, lang: string): string {
     }
     return neg + Math.round(abs).toLocaleString('en-US')
   }
+  // 十亿级要有自己的档 —— 否则「全市当日成交 12.7 亿」会显示成 `1270M`，
+  // 一串数字读不出量级（2026-08-12 每日速报实测）。中文侧本来就有「亿」。
+  // 只有汇总类数字会到这个量级，单套房永远到不了，影响面极小。
+  if (abs >= 1_000_000_000) return neg + trimZeros((abs / 1_000_000_000).toFixed(2)) + 'B'
   if (abs >= 1_000_000) return neg + trimZeros((abs / 1_000_000).toFixed(abs >= 100_000_000 ? 0 : 1)) + 'M'
   if (abs >= 1_000) return neg + Math.round(abs / 1_000) + 'K'
   return neg + Math.round(abs).toLocaleString('en-US')

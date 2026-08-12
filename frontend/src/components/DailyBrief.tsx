@@ -86,7 +86,7 @@ export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string)
   const up = (b.vsPrev?.pct ?? 0) >= 0
 
   return (
-    <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white md:mt-6">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4 text-orange-500" />
@@ -116,9 +116,9 @@ export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string)
           { label: zh ? '期房占比' : 'Off-plan share', value: `${b.sales.offplanPct}%`,
             sub: { up: true, text: `${b.sales.offplanCount} ${zh ? '套' : 'units'}`, muted: true } },
         ].map((k, i) => (
-          <div key={i} className="bg-white px-4 py-3">
+          <div key={i} className="bg-white px-3 py-2.5 md:px-4 md:py-3">
             <div className="text-[11px] text-slate-500">{k.label}</div>
-            <div className="mt-0.5 flex items-baseline gap-1 text-lg font-semibold text-slate-800">
+            <div className="mt-0.5 flex items-baseline gap-1 text-base font-semibold text-slate-800 md:text-lg">
               {k.currency && <DirhamSymbol size="0.7em" className="text-slate-400" />}
               {k.value}
             </div>
@@ -133,7 +133,9 @@ export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string)
         ))}
       </div>
 
-      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-4 py-3">
+      {/* 🔴 手机上右下角常驻着 Luna 浮标 + 打字按钮，会把这一区的右侧内容压住
+          （实测 414 宽度下「Me'Aisem First」整个被盖）。给它让出位置。 */}
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-3 pb-4 pe-16 pt-3 md:px-4 md:pe-4 md:py-3">
         <div className="min-w-[200px] flex-1">
           <div className="mb-1.5 text-[11px] font-medium text-slate-500">{zh ? '最活跃区域' : 'Busiest areas'}</div>
           <div className="flex flex-wrap gap-1.5">
