@@ -246,6 +246,9 @@ interface MeterVerdict {
 
 const EXEMPT: MeterVerdict = { metered: false, exhausted: false, remaining: -1, requiresPlan: false }
 
+/** 只读的公开内容 —— 不消费地图，也不该被地图额度墙拦。 */
+const PUBLIC_CONTENT = ['/api/market/daily-brief']
+
 /**
  * 计一分钟 + 判定额度。中间件与心跳端点共用。
  *
@@ -255,6 +258,25 @@ const EXEMPT: MeterVerdict = { metered: false, exhausted: false, remaining: -1, 
  * 且该判定在内部号豁免之前,内部浏览器上测试也能看到锁(owner/admin 按邮箱豁免)。
  */
 async function meter(req: Request, opts: { record: boolean }): Promise<MeterVerdict> {
+  /**
+   * 🔴 **公开内容页豁免 —— 它们的存在意义就是给没登录的人看。**
+   *
+   * 2026-08-12 实测:每日成交速报刚上线就被自己的额度墙拦了(它挂在
+   * `/api/market/*` 下,整段被计量)。**给未登录访客准备的东西被登录墙挡住**,
+   * 完全违背它存在的目的 —— 而且报错文案还是「免费探索时长已用完」,
+   * 人只会以为网站坏了。
+   *
+   * 判据:这类端点**不消费地图**(不拉瓦片、不查地块),只是只读的市场内容。
+   * 加新的公开内容端点时记得加进来 —— 同 `?toursession=` 那次漏掉的教训。
+   */
+  // ⚠️ **必须用 originalUrl,不能用 req.path。** 这个中间件是按**前缀数组**挂载的
+  // (`app.use(['/api/dubai', …, '/api/market'], mapMeter)`),Express 会把匹配到的
+  // 前缀从 `req.path` 里剥掉 —— 里面看到的是 `/daily-brief`,永远匹配不上完整路径。
+  // 同款陷阱在 perfMetrics.ts 和 memory `express-req-path-in-finish-callback` 里
+  // 各记过一次,我又踩了第三次。
+  const fullPath = (req.originalUrl || req.url || '').split('?')[0]
+  if (PUBLIC_CONTENT.some(p => fullPath.startsWith(p))) return EXEMPT
+
   // 0) 有效分享码(经纪拉新回路 /r /t /v /cr、以及 ?toursession=)→ 豁免
   const shareCode = shareCodeOf(req)
   if (shareCode && (await isValidShareCode(shareCode))) return EXEMPT

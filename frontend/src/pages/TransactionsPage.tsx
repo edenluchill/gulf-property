@@ -3,6 +3,7 @@
  * 多维筛选 → 聚合指标 + 月度趋势 + 明细分页
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import DailyBrief from '../components/DailyBrief'
 import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown, Search, X } from 'lucide-react'
@@ -433,6 +434,13 @@ export default function TransactionsPage() {
         </div>
       ) : summary && summary.count > 0 ? (
         <>
+          {/* 🔴 **速报只占「还没搜任何东西」时的那块地。**
+              owner 的要求是「不能太臃肿，也不能互相掣肘」——
+              所以它不加 tab、不加路由，一旦有了筛选条件就自动让位给结果。
+              两者服务的是两种意图（闲逛 vs 找特定东西），永远不会同时抢注意力。 */}
+          {activeCount === 0 && (
+            <DailyBrief onPickArea={(area) => togglePick({ type: 'area', name: area } as TxSuggestion)} />
+          )}
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
             <Kpi label={t('kpi.count')} value={fmt(summary.count)} />
             <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} currency />
