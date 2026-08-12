@@ -4,6 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DailyBrief from '../components/DailyBrief'
+import { Flame } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown, Search, X } from 'lucide-react'
@@ -22,7 +23,7 @@ import { useScrollChrome } from '../hooks/useScrollChrome'
 const SALE_PRICE_STEPS = [500000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000, 20000000, 50000000]
 
 type SaleType = 'all' | 'ready' | 'offplan'
-type Mode = 'sales' | 'rent'
+type Mode = 'brief' | 'sales' | 'rent'
 
 /**
  * 一条已选筛选条件。区域有两种来源:搜索框选的(DLD area_name,无 id)和
@@ -92,7 +93,17 @@ export default function TransactionsPage() {
   // 手机/pad 下滑收起顶部导航,到顶才回来(全站统一滚动收纳机制)
   const scrollChromeRef = useRef<HTMLDivElement>(null)
   useScrollChrome(scrollChromeRef)
-  const [mode, setMode] = useState<Mode>('sales')
+  /**
+   * 🔴 **默认停在速报。**
+   *
+   * 第一版把速报塞在筛选器和结果**中间** —— owner 一句话点破：
+   * 「新闻放在 filter 和结果中间？是人类能想的出来的吗？而且搜索时很碍事。」
+   * 他是对的:那个位置让人以为「我要的结果呢」,而且搜索时它一直杵在中间。
+   *
+   * 现在是并列的两个 section,互不打扰。默认落在速报,因为进这一页的人
+   * 大多数并没有具体要查的东西 —— 先给他内容,想查的人点一下就切过去。
+   */
+  const [mode, setMode] = useState<Mode>('brief')
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   // 统一搜索:区域 / 楼盘 / 楼栋三类候选进同一个框,选中的一律进 picks。
   // 楼盘 = 该盘全部楼栋;楼栋 = 只看这一栋 —— 经纪要的「社区名查全部 or 分栋单查」。
@@ -251,18 +262,29 @@ export default function TransactionsPage() {
 
       {/* 成交 / 租金 切换 */}
       <div className="mt-3 inline-flex rounded-lg bg-slate-100 p-0.5">
-        {(['sales', 'rent'] as Mode[]).map((m) => (
+        {(['brief', 'sales', 'rent'] as Mode[]).map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            className={`flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors md:px-4 ${mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            {m === 'sales' ? (t('misc:sales2')) : (t('misc:rent'))}
+            {m === 'brief' && <Flame className="h-3.5 w-3.5 text-orange-500" />}
+            {m === 'brief' ? t('briefTab') : m === 'sales' ? t('misc:sales2') : t('misc:rent')}
           </button>
         ))}
       </div>
 
-      {mode === 'rent' ? <RentView /> : (
+      {mode === 'brief' ? (
+        <DailyBrief
+          standalone
+          onPickArea={(area) => {
+            // 点区名 = 明确的查询意图 → 切到成交并带上这个区
+            setMode('sales')
+            togglePick({ type: 'area', name: area } as TxSuggestion)
+          }}
+          onGoSearch={() => setMode('sales')}
+        />
+      ) : mode === 'rent' ? <RentView /> : (
       <>
       {/* 筛选 —— 一个主搜索框 + 口径三档,其余全部收进「筛选」抽屉。
           买家视角:绝大多数人只想搜一个社区名看看成交,不该一上来面对 6 个并排下拉。
@@ -437,13 +459,6 @@ export default function TransactionsPage() {
         </div>
       ) : summary && summary.count > 0 ? (
         <>
-          {/* 🔴 **速报只占「还没搜任何东西」时的那块地。**
-              owner 的要求是「不能太臃肿，也不能互相掣肘」——
-              所以它不加 tab、不加路由，一旦有了筛选条件就自动让位给结果。
-              两者服务的是两种意图（闲逛 vs 找特定东西），永远不会同时抢注意力。 */}
-          {activeCount === 0 && (
-            <DailyBrief onPickArea={(area) => togglePick({ type: 'area', name: area } as TxSuggestion)} />
-          )}
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
             <Kpi label={t('kpi.count')} value={fmt(summary.count)} />
             <Kpi label={t('kpi.medianPps')} value={fmt(pps?.median)} currency />

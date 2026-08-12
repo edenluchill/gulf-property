@@ -25,7 +25,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TrendingUp, TrendingDown, Copy, Check, Flame } from 'lucide-react'
+import { TrendingUp, TrendingDown, Copy, Check, Flame, Search } from 'lucide-react'
 import { API_BASE_URL } from '../lib/config'
 import { formatMoneyCompact } from '../lib/money'
 import DirhamSymbol from './DirhamSymbol'
@@ -41,7 +41,13 @@ interface Brief {
 }
 
 /** 区名点一下就搜它 —— 速报不是死的，是搜索的入口。 */
-export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string) => void }) {
+export default function DailyBrief({ onPickArea, onGoSearch, standalone }: {
+  onPickArea?: (area: string) => void
+  /** 「查具体成交」—— 速报是入口，不是终点 */
+  onGoSearch?: () => void
+  /** 独占一屏（作为一个 section），而不是嵌在别的内容中间 */
+  standalone?: boolean
+}) {
   const { i18n } = useTranslation()
   const zh = i18n.language?.startsWith('zh')
   const [b, setB] = useState<Brief | null>(null)
@@ -87,7 +93,7 @@ export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string)
 
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white md:mt-6">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-3 py-2.5 md:px-4">
         <div className="flex items-center gap-2">
           <Flame className="h-4 w-4 text-orange-500" />
           <h2 className="text-sm font-semibold text-slate-800">
@@ -175,6 +181,18 @@ export default function DailyBrief({ onPickArea }: { onPickArea?: (area: string)
           </div>
         )}
       </div>
+
+      {/* 速报是入口不是终点 —— 看完给一条明确的路通向查询，
+          而不是让人自己去找上面那个 tab。 */}
+      {standalone && onGoSearch && (
+        <button
+          onClick={onGoSearch}
+          className="flex w-full items-center justify-center gap-1.5 border-t border-slate-100 bg-slate-50/60 px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-teal-50 hover:text-teal-700"
+        >
+          <Search className="h-4 w-4" />
+          {zh ? '查具体成交记录' : 'Search specific transactions'}
+        </button>
+      )}
     </section>
   )
 }

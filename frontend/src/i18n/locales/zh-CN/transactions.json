@@ -82,5 +82,8 @@
   "yr": "年",
   "sourceDubaiLandDepartment": "数据来源 Dubai Land Department,展示该开发体近期记录。",
   "emptyRoomsHint": "提示：DLD 对别墅和联排（如 DAMAC Lagoons 全系）不登记户型，按户型筛选会把这些社区整体排除。",
-  "emptyDropRooms": "去掉户型筛选"
+  "emptyDropRooms": "去掉户型筛选",
+  "briefTab": "今日速报",
+  "briefSub": "昨天卖了什么",
+  "briefGoSearch": "查具体成交记录"
 }
