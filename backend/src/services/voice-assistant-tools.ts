@@ -509,6 +509,16 @@ export function classifyOutcome(out: { result: any; summary: string }): string {
   if (s.startsWith('Unknown tool')) return 'unknown'
   if (/AREA_AMBIGUOUS|needs_disambiguation/i.test(s)) return 'ambiguous'
   if (/AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND/i.test(s)) return 'not_found'
+  /**
+   * 🔴 **不是每个工具都吐大写标记。** 2026-08-12 实测:
+   * `get_area_info('Terra Woods')` 返回 `"Could not find information about Terra Woods."`
+   * —— 被判成 `ok`。后果有两个,都不轻:
+   *   ① 工具犯错率面板上「查无」永远是 0,owner 想看的正是这个数
+   *   ② Brain 的抢跑路径以为查到了,直接拿空结果成稿,不再退回换个查法
+   * 所以自然语言的「没找到」也要认。
+   */
+  if (/could ?n[o']?t find|couldn't find|no (results?|projects?|matches?|data|information) (found|available|for)|nothing found/i.test(s)) return 'not_found'
+  if (/找不到|没有找到|无法找到|未找到/.test(s)) return 'not_found'
   // 0 结果:搜索类工具查到了但一条没有 —— 和"查不到这个地方"是两回事。
   const r = out?.result
   if (r && typeof r === 'object') {

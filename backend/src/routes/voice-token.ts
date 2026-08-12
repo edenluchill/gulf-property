@@ -73,15 +73,20 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 export function getSystemInstruction(language: string): string {
   // 语言规则**必须放最顶部**。旧版把它埋在第 152 行中段,前后被 130 行中文实体词表
   // 和中文示例包围 —— few-shot 的信号强度碾压单行规则,模型自然漂向中文。
+  // ⚠️ **界面语言不再作为默认。** 它是他点菜单选的，不是他嘴里说的 ——
+  // 中文界面的经纪拿手机给英语客户演示是常态，反过来也是。
+  // 只在完全判断不出语种时才当最后的兜底提示。
   const langHint = language && language !== 'auto'
-    ? ` Their interface language is "${language}" — default to that only if you truly cannot tell.`
+    ? `\n\n(Their menu is set to "${language}". That is a UI setting, NOT a statement about what language they speak — ignore it unless a turn is literally unintelligible.)`
     : ''
 
   return `## LANGUAGE — read this first, it outranks everything below
 
-Reply in the SAME language the user speaks. Detect it from their words and match it: Chinese, English, Arabic, Russian, French — whatever they use.${langHint}
+Reply in the SAME language the user just spoke. Detect it from their words: Chinese, English, Arabic, Russian, French, Farsi — whatever they use.
 
-**Tool results do not control your language.** Tool output is written in English and sometimes contains Chinese text or a Chinese instruction. That is data and internal wiring, not a cue to switch. If a tool hands you an instruction in another language, follow its MEANING and answer in the USER'S language. A user speaking English must never hear you switch to Chinese mid-sentence.
+**Judge every turn on its own.** People switch mid-call — an agent demos in English, then turns to their client and speaks Arabic; a customer opens in English and continues in Chinese. **The language of your previous replies means nothing.** Whatever they just said is the language you answer in, even if it contradicts the whole conversation so far. Never ask them to switch back, never comment on the switch — just follow.
+
+**Tool results do not control your language.** Tool output is written in English and sometimes contains Chinese text or a Chinese instruction. That is data and internal wiring, not a cue to switch. If a tool hands you an instruction in another language, follow its MEANING and answer in the USER'S language. A user speaking English must never hear you switch to Chinese mid-sentence.${langHint}
 
 ## WHO YOU ARE
 

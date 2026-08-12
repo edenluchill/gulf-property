@@ -180,7 +180,9 @@ function rememberTurn(sessionId: string | undefined, speech: string, toolLog: Br
 
   const note =
     (named.length ? `shown to them, in this order: ${named.join('; ')}. ` : '') +
-    `you said: "${speech.slice(0, 300)}"`
+    // ⚠️ 明确标注上一轮的话**只用来解指代**,不是语言范本 ——
+    // 否则客户中途从中文切英文时,这段中文会把模型拽回中文。
+    `(for resolving references only, NOT a language sample) you said: "${speech.slice(0, 300)}"`
   lastTurn.set(sessionId, { at: now, note: note.slice(0, NOTE_MAX) })
 }
 
@@ -202,7 +204,8 @@ function bumpStreak(sessionId: string | undefined, clarifying: boolean): number 
  * 这些在旧埋点里**全部记成 `ok`** —— 监控 100% 健康，用户那边全是失败。
  * 见审计报告第二节。
  */
-const NO_ANSWER_MARKERS = /AREA_AMBIGUOUS|AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND|no results|0 results/i
+const NO_ANSWER_MARKERS =
+  /AREA_AMBIGUOUS|AREA_NOT_FOUND|FEATURE_UNKNOWN|NOT_FOUND|no results|0 results|could ?n[o']?t find|nothing found|找不到|没有找到|无法找到/i
 
 function systemPrompt(question: string, language: string | undefined, forceContent: boolean, fillerSaid?: string): string {
   // 两段式:客户已经听过过渡句了,这里必须接着往下说,不能再应答一次。
@@ -244,7 +247,7 @@ another second of silence.
 
 ${heard}## YOUR OUTPUT
 
-- **Write in the language the customer is actually speaking — detected from their own words as: ${detectLang(question, language)}.** (The UI language they happen to have set is NOT the same thing: agents with a Chinese interface demo to English-speaking clients all the time.) Tool output is English and sometimes contains Chinese instructions — that is internal wiring, not a cue to switch languages.
+- **Write in the language the customer is speaking RIGHT NOW — detected from this turn's own words as: ${detectLang(question, language)}.** Judge this turn on its own: people switch mid-call (an agent demos in English, then speaks Arabic to their client). **What language you used last turn means nothing** — follow the switch silently, never comment on it, never ask them to switch back. The UI menu language is a setting, not a statement about what they speak. Tool output is English and sometimes contains Chinese instructions — that is internal wiring, not a cue to switch.
 - 2-3 spoken sentences. No markdown, no bullet points, no JSON, no headings — this is read aloud.
 - Speak amounts the way a person would ("2.7 million dirhams"). **Never change the magnitude.**
 - Lead with the single most useful fact for THIS person, then one concrete next step.
@@ -357,6 +360,7 @@ function detectLang(question?: string, ui?: string): string {
     if (ui && /^(fr|es|de|pt|it)/.test(ui)) return ui.slice(0, 2)
     return 'en'
   }
+  // 一个字都判不出来（纯数字/纯标点/空）才轮到界面语言。
   return ui && ui !== 'auto' ? ui.slice(0, 2) : 'en'
 }
 
@@ -477,11 +481,30 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
      * 不产生任何事实陈述的调用,没有幻觉风险,却要为两轮推理付 4 秒。
      * 「带我去 Marina」等 4 秒是不可接受的 —— 一轮(执行 + 成稿)≈1.5s。
      */
-    const fastPath = !scope && !!ask.intendedTool && UI_ACTION_TOOLS.has(ask.intendedTool)
-    if (fastPath) {
-      // **直接执行,不让模型再选一遍工具。** 让它重选就又是一次 LLM 往返,
-      // 快路径也就白叫了。这类工具选错的代价也小 —— 区域名不对,
-      // 工具自己会回 AREA_NOT_FOUND,下面成稿时照实说。
+    /**
+     * ⚡ **抢跑：Live 已经选好工具了，就别让模型再选一遍。**
+     *
+     * 实测(48h 生产数据)每多一次模型往返 **+1.4 秒**：
+     *   0 个工具 2.6s · 1 个 3.5s · 2 个 4.9s · 3 个 6.1s
+     * 而工具执行本身只要 150ms —— 时间全花在「模型思考该调什么」上。
+     *
+     * 但 Live **已经告诉我们它想调什么**（`intendedTool`，它看着完整的 23 条
+     * description 选的）。它选得对的时候，第一轮 LLM 纯属重复劳动。
+     * 直接执行 → 一轮成稿：**2 次往返变 1 次，省掉整整一轮**。
+     *
+     * ⚠️ **它选错怎么办** —— 这才是这段代码真正要处理的事：
+     * 结果为空 / 查无 / 歧义时**不成稿**，回退到完整循环，把工具重新交给模型
+     * 让它换个查法。所以最坏情况只是退回原来的两轮，不会更差；
+     * 而常见情况（选对了）直接减半。
+     *
+     * 决策权仍然在 Brain：抢跑的是「执行」，不是「怎么说」。
+     */
+    const uiAction = !scope && !!ask.intendedTool && UI_ACTION_TOOLS.has(ask.intendedTool)
+    const canSprint = !scope && !!ask.intendedTool && !uiAction &&
+      !!ask.intendedParams && Object.keys(ask.intendedParams).length > 0
+    let sprintUsable = false
+
+    if (uiAction || canSprint) {
       try {
         const out = await executeTool(ask.intendedTool!, ask.intendedParams || {})
         toolsUsed.push(ask.intendedTool!)
@@ -491,20 +514,34 @@ export async function askLuna(ask: BrainAsk): Promise<BrainAnswer> {
           outcome: classifyOutcome(out), summary: out.summary,
           userSaid: ask.question, intended: true,
         })
-        if (NO_ANSWER_MARKERS.test(out.summary || '')) sawNoAnswer = true
+        const noAnswer = NO_ANSWER_MARKERS.test(out.summary || '')
+        if (noAnswer) sawNoAnswer = true
         if (out.mapAction) mapAction = out.mapAction
         if (out.result) attachments.push({ toolName: ask.intendedTool!, result: out.result, params: ask.intendedParams })
-        contents.push({
-          role: 'user',
-          parts: [{ text: `[${ask.intendedTool} ran] ${out.summary}\n\nNow say one short line to the customer about what they're seeing. No more tools.` }],
-        })
+
+        // UI 动作:一律直接成稿（本来就没有"查错了"这回事）。
+        // 数据工具:只有真查到东西才抢跑；空/查无就退回让模型换个查法。
+        sprintUsable = uiAction || (!noAnswer && classifyOutcome(out) === 'ok')
+        if (sprintUsable) {
+          contents.push({
+            role: 'user',
+            parts: [{ text: uiAction
+              ? `[${ask.intendedTool} ran] ${out.summary}\n\nNow say one short line to the customer about what they're seeing. No more tools.`
+              : `[${ask.intendedTool} already ran for you] ${out.summary}\n\nAnswer the customer from this. No more tools — if something is missing, say so plainly rather than promising to look again.` }],
+          })
+        }
       } catch {
-        contents.push({ role: 'user', parts: [{ text: `[${ask.intendedTool} failed] Say one short line asking them to try again. No more tools.` }] })
+        if (uiAction) {
+          sprintUsable = true
+          contents.push({ role: 'user', parts: [{ text: `[${ask.intendedTool} failed] Say one short line asking them to try again. No more tools.` }] })
+        }
+        // 数据工具挂了 → sprintUsable 保持 false，走完整循环重试别的路子
       }
     }
+    if (sprintUsable) counter('luna.brain.sprint', { kind: uiAction ? 'ui' : 'data' }).inc()
 
     let speech = ''
-    for (let round = 1; round <= (fastPath ? 0 : MAX_ROUNDS); round++) {
+    for (let round = 1; round <= (sprintUsable ? 0 : MAX_ROUNDS); round++) {
       rounds = round
       if (Date.now() - t0 > BUDGET_MS) break
 
