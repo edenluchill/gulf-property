@@ -87,6 +87,34 @@ function endpointOf(url: string): string {
   }
 }
 
+/**
+ * 「后台探针」—— 失败对用户**零影响**的 fire-and-forget 请求。
+ *
+ * 它们的 network 失败不进错误监控:调用方自己就写着「失败无所谓」,而这类失败
+ * 几乎全部来自用户网络抖动。2026-08-12 实测 30 天:map-heartbeat 一个端点就贡献了
+ * 36 条 network 报错 / 16 个人 —— 排在错误榜第一名,但没有任何一个用户因此受影响,
+ * 反而把真正的问题(/api/me/profile 把人踢去 /choose-role)压到了第二名。
+ *
+ * ⚠️ **只静默 network 类**。5xx / 429 仍然照报 —— 那是服务端真的出事了。
+ */
+const QUIET_NETWORK_ENDPOINTS = [
+  '/api/usage/map-heartbeat',   // 地图计量心跳,30s 一次,失败由服务端数据门兜底
+  '/api/meta/data-version',     // 数据版本轮询,失败只是不刷新缓存
+  '/api/telemetry/rum',         // 性能上报,本身就是遥测
+]
+
+/**
+ * 用户当时是不是断网的。
+ *
+ * 断网时**每一个**请求都会失败,照着逐个端点报等于把一次断网放大成十几条"故障" ——
+ * 错误监控会常年有红,真事故被淹(仓库铁律:告警是事故,不是状态)。
+ * 所以断网只报**一条** `kind:'offline'`:这条信息本身很有价值 ——
+ * jencruise3 卡死在 /choose-role 的那一秒,navigator.onLine 就是 false。
+ */
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
 function isOurApi(url: string): boolean {
   if (!url) return false
   // Same-origin /api/* or anything under the configured API host.
@@ -158,15 +186,27 @@ export function installApiErrorCapture(): void {
       if (err instanceof Error && err.message === 'map_quota_exhausted') throw err
       if (mine && !isTelemetry) {
         const endpoint = endpointOf(url)
-        const signature = `${method} ${endpoint} network`
-        if (shouldReport(signature)) {
-          trackError('api_error', {
-            kind: 'network',
-            method,
-            endpoint,
-            url: url.slice(0, 300),
-            message: err instanceof Error ? err.message.slice(0, 200) : 'network error',
-          })
+        if (isOffline()) {
+          // 断网 —— 一次事件报一条,不按端点铺开(否则一次断网变成十几条"故障")
+          if (shouldReport('offline')) {
+            trackError('api_error', {
+              kind: 'offline',
+              method,
+              endpoint,
+              message: 'navigator.onLine=false — 用户当时断网,不是接口故障',
+            })
+          }
+        } else if (!QUIET_NETWORK_ENDPOINTS.includes(endpoint)) {
+          const signature = `${method} ${endpoint} network`
+          if (shouldReport(signature)) {
+            trackError('api_error', {
+              kind: 'network',
+              method,
+              endpoint,
+              url: url.slice(0, 300),
+              message: err instanceof Error ? err.message.slice(0, 200) : 'network error',
+            })
+          }
         }
       }
       throw err

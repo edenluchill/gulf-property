@@ -67,17 +67,42 @@ export default function MapMeterGuard({ active, getView }: Props) {
   const activeRef = useRef(active)
   activeRef.current = active
 
-  // ── 心跳(拦截器自动带 Authorization,买家/已订阅经纪返回 unlimited)────
+  /**
+   * ── 心跳(拦截器自动带 Authorization,买家/已订阅经纪返回 unlimited)────
+   *
+   * 🔴 **离线不打、失败要退避**(2026-08-12)。原来是雷打不动每 30s 一次:
+   *    用户网络一断,它就每 30s 失败一次,一直到他关掉页面。30 天实测这个端点
+   *    贡献了 36 条 network 报错 / 16 个人,是错误榜第一名 —— 而它失败对用户
+   *    **零影响**(服务端数据门自己会兜底),纯粹是噪音,还把真问题压到了后面。
+   *
+   *    现在:navigator.onLine=false 直接跳过;连续失败按 30s→60→120→240→300s
+   *    退避;成功或 online 事件立刻恢复常速。
+   */
   useEffect(() => {
     if (!active) return
     let stop = false
+    let fails = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    /** 连续失败 n 次后下一拍等多久 —— 上限 5 分钟(再久就等于没在计量了) */
+    const nextDelay = () => Math.min(HEARTBEAT_MS * 2 ** fails, 300_000)
+    const schedule = () => {
+      if (stop) return
+      clearTimeout(timer)
+      timer = setTimeout(() => void beat(), nextDelay())
+    }
+
     const beat = async () => {
-      if (stop || document.visibilityState !== 'visible') return
+      if (stop) return
+      // 标签页不可见 / 已断网 —— 打了必然白打,按常速再来一拍就行(不算失败)
+      if (document.visibilityState !== 'visible' || navigator.onLine === false) { schedule(); return }
       try {
         const res = await fetch(`${API_BASE_URL}/api/usage/map-heartbeat`, { method: 'POST' })
-        if (!res.ok) return
+        if (!res.ok) { fails++; schedule(); return }
+        fails = 0
         const j = await res.json()
         if (stop) return
+        schedule()
         if (j?.unlimited) {
           setExhausted(false); setRequiresPlan(false)
           try { sessionStorage.removeItem(GATE_RELOAD_KEY) } catch { /* noop */ }
@@ -87,11 +112,22 @@ export default function MapMeterGuard({ active, getView }: Props) {
         setRequiresPlan(!!j?.requiresPlan)
         if (j?.exhausted) setExhausted(true)
         else { try { sessionStorage.removeItem(GATE_RELOAD_KEY) } catch { /* noop */ } }
-      } catch { /* 心跳失败无所谓,服务端数据门兜底 */ }
+      } catch {
+        // 心跳失败无所谓,服务端数据门兜底 —— 但要退避,别每 30s 一次地撞到天亮
+        fails++
+        schedule()
+      }
     }
+
+    // 网络回来了 → 立刻补一拍并把退避清零(用户此刻多半正盯着地图)
+    const onOnline = () => { fails = 0; void beat() }
+    window.addEventListener('online', onOnline)
     void beat()
-    const timer = setInterval(() => void beat(), HEARTBEAT_MS)
-    return () => { stop = true; clearInterval(timer) }
+    return () => {
+      stop = true
+      clearTimeout(timer)
+      window.removeEventListener('online', onOnline)
+    }
   }, [active, user])
 
   // ── 数据层 429 → overlay(fetch 拦截器广播)──────────────
