@@ -8,7 +8,8 @@
  */
 export type ContactType = 'whatsapp' | 'phone' | 'email'
 
-export const CONTACT_TYPES: ContactType[] = ['whatsapp', 'phone', 'email']
+/** 顺序无所谓 —— 后端只拿它判合法值。**界面顺序在前端那份里**(owner 排的) */
+export const CONTACT_TYPES: ContactType[] = ['phone', 'email', 'whatsapp']
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 

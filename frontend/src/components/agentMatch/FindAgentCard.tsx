@@ -65,8 +65,8 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
-  /** 默认 WhatsApp —— 迪拜这边经纪和买家几乎只用它 */
-  const [contactType, setContactType] = useState<ContactType>('whatsapp')
+  /** 默认选第一个 —— 顺序由 CONTACT_TYPES 定(owner 排的:手机 / 邮箱 / WhatsApp) */
+  const [contactType, setContactType] = useState<ContactType>(CONTACT_TYPES[0])
   /** 只有在他碰过输入框之后才报红,别一打开弹窗就一片红 */
   const [touched, setTouched] = useState(false)
   const [err, setErr] = useState('')

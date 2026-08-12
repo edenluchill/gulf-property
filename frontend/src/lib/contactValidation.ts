@@ -15,7 +15,12 @@
  */
 export type ContactType = 'whatsapp' | 'phone' | 'email'
 
-export const CONTACT_TYPES: ContactType[] = ['whatsapp', 'phone', 'email']
+/**
+ * **这个数组的顺序就是界面上三颗按钮的顺序**(owner 2026-08-11:
+ * 「第一个是手机,第二个是邮箱,然后才是 WhatsApp」),第一个同时也是默认选中的。
+ * 改顺序前先问 —— 这是他定的,不是随便排的。
+ */
+export const CONTACT_TYPES: ContactType[] = ['phone', 'email', 'whatsapp']
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 
