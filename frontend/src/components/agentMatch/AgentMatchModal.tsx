@@ -53,14 +53,21 @@ export default function AgentMatchModal({ open, onClose, source, projectId, proj
     if (!open) return
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', esc)
-    // 抽屉开着时锁掉背后的滚动 —— 不锁的话手机上手指划到边缘会滚底下那一页
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     return () => {
       window.removeEventListener('keydown', esc)
-      document.body.style.overflow = prev
+      // 关闭(以及组件被卸载)时一定要还回去,否则整页永远滚不动
+      document.body.style.overflow = ''
     }
   }, [open, onClose])
+
+  /**
+   * 🔴 **背后的滚动锁要等动画放完再上**(owner:「还是会卡一下再弹上来」)。
+   *
+   * `body { overflow:hidden }` 会让**整份文档**重新布局一次。项目页很长、还挂着
+   * 地图 canvas,这一下十几毫秒 —— 正好砸在抽屉起飞的第一帧上,看着就是"卡一下"。
+   * 挪到动画结束之后,那一帧就只剩 transform 了。
+   */
+  const lockScroll = () => { if (open) document.body.style.overflow = 'hidden' }
 
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl'
   /** 侧边抽屉从哪一侧进来。RTL 下界面整体镜像,抽屉也得跟着从左边进 */
@@ -89,7 +96,7 @@ export default function AgentMatchModal({ open, onClose, source, projectId, proj
     <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-[9000] bg-slate-950/50"
+          className="fixed inset-0 z-[9000] touch-none bg-slate-950/50"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
@@ -103,7 +110,8 @@ export default function AgentMatchModal({ open, onClose, source, projectId, proj
               drag="y" dragListener={false} dragControls={drag}
               dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.4 }}
               onDragEnd={(_, info) => { if (info.offset.y > 110 || info.velocity.y > 600) onClose() }}
-              className="absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+              onAnimationComplete={lockScroll}
+              className="absolute inset-x-0 bottom-0 max-h-[88vh] touch-auto overflow-y-auto overscroll-contain rounded-t-3xl bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
             >
               <div onPointerDown={(e) => drag.start(e)}
                 className="-mx-4 flex touch-none cursor-grab justify-center px-4 pb-2 pt-3 active:cursor-grabbing">
@@ -117,7 +125,8 @@ export default function AgentMatchModal({ open, onClose, source, projectId, proj
               onClick={(e) => e.stopPropagation()}
               initial={{ x: offX }} animate={{ x: 0 }} exit={{ x: offX }}
               transition={spring}
-              className="absolute inset-y-0 end-0 flex w-[26rem] max-w-[92vw] flex-col overflow-y-auto rounded-s-3xl bg-white p-5 shadow-2xl"
+              onAnimationComplete={lockScroll}
+              className="absolute inset-y-0 end-0 flex w-[26rem] max-w-[92vw] flex-col touch-auto overflow-y-auto overscroll-contain rounded-s-3xl bg-white p-5 shadow-2xl"
             >
               {/* 关闭钉在角上,内容整体垂直居中 —— 表单只有半屏高,顶部对齐会在下面
                   留一大片空白,看着像没加载完。m-auto 在内容超高时会自动退让给滚动。 */}

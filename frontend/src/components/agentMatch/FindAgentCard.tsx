@@ -118,8 +118,40 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
   if (cands && cands.length === 0) {
     return <p className="py-6 text-center text-sm text-slate-400">{t('agentMatch.noneAvailable')}</p>
   }
+  /**
+   * 🔴 **骨架必须和真表单一样高**(owner 2026-08-11:「它会卡一下再弹上来」)。
+   *
+   * 之前这里只放了一个转圈:抽屉是按**当时的高度**从底下升上来的,候选一到、
+   * 内容撑开,面板就会在动画刚结束时再往上蹿一截 —— 那一下就是他说的「卡一下」。
+   * 不是掉帧,是布局在动画中途变了。
+   *
+   * 所以骨架逐块对着下面的真表单摆:3 张候选卡 / 类型药丸 / 输入框 / 备注框 / 提交键。
+   * 改真表单的结构时**这里要跟着改**,不然那一跳会回来。
+   */
   if (!cands) {
-    return <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-slate-300" /></div>
+    return (
+      /* 高度是**量出来的**,不是估的(真表单五块:16 / 97 / 103 / 58 / 40)。
+         改真表单的结构时重新量一遍,别拍脑袋。 */
+      <div className="animate-pulse space-y-3" aria-hidden>
+        <div className="h-4 w-28 rounded bg-slate-100" />
+        <div className="grid h-[97px] grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col items-center justify-center gap-1.5 rounded-xl ring-1 ring-slate-200">
+              <span className="h-10 w-10 rounded-full bg-slate-100" />
+              <span className="h-3 w-14 rounded bg-slate-100" />
+              <span className="h-2.5 w-10 rounded bg-slate-100" />
+            </div>
+          ))}
+        </div>
+        <div className="h-[103px] space-y-2">
+          <div className="h-[42px] rounded-full bg-slate-100" />
+          <div className="h-[38px] rounded-xl bg-slate-100" />
+          <div className="h-4 w-40 rounded bg-slate-100" />
+        </div>
+        <div className="h-[58px] rounded-xl bg-slate-100" />
+        <div className="h-10 rounded-xl bg-slate-200" />
+      </div>
+    )
   }
 
   // ── ② 结果 ────────────────────────────────────────────────────────────────
@@ -297,9 +329,11 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
         </p>
       </div>
 
+      {/* `block` 不是装饰:textarea 默认 inline-block,行盒会在它下面多留 6px 的
+          基线空隙 —— 那 6px 让骨架和真表单永远差一点,抽屉升上来之后还会再跳一下。 */}
       <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
         placeholder={t('agentMatch.yourNote')}
-        className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+        className="block w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
 
       {err && (
         <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
