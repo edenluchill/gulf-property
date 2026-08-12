@@ -62,7 +62,24 @@ const AI_SYNC_PATTERNS = [
   /\/clients\/profile-coach$/,           // 客户档案教练(await coachProfile)
   /\/client-reports$/,                   // 客户匹配报告(await buildClientReport)
   /\/luna\/agent\/report$/,              // 同上,另一个入口
+  /\/voice\/tools\/ask(-more)?$/,        // Luna Brain:两轮 LLM 推理,2-6s 是设计值
+  /\/agent\/coach$/,                     // 经纪产品教练:开放式问题走模型
 ]
+
+/**
+ * ⚠️ **加了「同步等模型」的端点就必须同时加进上面那张表。**
+ *
+ * 2026-08-11 实测:`/api/voice/tools/ask` 近 24h **p95 6543ms**,
+ * 把 HIGH_LATENCY 告警顶成常亮 —— 而 2-6 秒正是 Brain 的**设计值**
+ * (两轮 LLM 推理,`BUDGET_MS = 6000`)。拿 2000ms 通用阈值卡它,
+ * 得到的不是「发现了问题」,是**一条永远红着的线**,
+ * 然后真的性能事故就淹在里面没人看见了(同 2026-07-09 上传那次)。
+ *
+ * **那这些端点变慢了怎么办?** 不靠这条通用告警,靠它们自己的专用指标:
+ *   · Brain  → `luna.brain.ms` histogram + `/admin/luna` 的「Brain 平均耗时」
+ *   · Coach  → `agent.coach.ms` histogram
+ * 那里才有正确的基线(4 秒是正常,20 秒才是事故),通用阈值给不了这个判断。
+ */
 function isLongLived(path: string): boolean {
   return LONG_LIVED_PREFIXES.some((p) => path.startsWith(p))
     || AI_SYNC_PATTERNS.some((re) => re.test(path))
