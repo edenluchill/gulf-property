@@ -60,6 +60,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-08-12',
+    kind: 'new',
+    zh: '成交页多了「今日速报」——每天开盘后能一眼看到全市昨天成交了多少套、总额多少、中位价、期房占了几成，还有当天最活跃的几个区和最高的那一笔。数字直接来自迪拜土地局（DLD），页面上标了数据滞后几天，不含糊。区名点一下就直接查那个区的成交记录。经纪还能一键把这段话复制下来发给客户。',
+    en: 'Transactions now open on a Daily Brief — at a glance you see how many homes sold across Dubai yesterday, the total value, the median price and the off-plan share, plus the busiest areas and the single biggest sale. The numbers come straight from the Dubai Land Department, and the page states how many days behind the data is rather than pretending it is live. Tap any area name to jump straight into its transaction records. Agents can copy the whole summary in one tap to send to a client.',
+    fr: "La page des transactions s'ouvre désormais sur un « Résumé du jour » : en un coup d'œil, le nombre de ventes à Dubaï la veille, le montant total, le prix médian et la part de VEFA, ainsi que les quartiers les plus actifs et la vente la plus élevée. Les chiffres proviennent directement du Dubai Land Department, et la page indique le décalage réel des données au lieu de les présenter comme instantanées. Touchez un quartier pour consulter directement ses transactions. Les agents peuvent copier tout le résumé en un geste pour l'envoyer à un client.",
+    ru: 'Раздел сделок теперь открывается «Сводкой дня»: сразу видно, сколько объектов продано в Дубае накануне, на какую сумму, медианная цена и доля строящегося жилья, а также самые активные районы и самая крупная сделка. Данные поступают напрямую из Земельного департамента Дубая, и на странице честно указано, на сколько дней они отстают. Нажмите на название района — откроются его сделки. Агент может скопировать всю сводку одним касанием и отправить клиенту.',
+    ar: 'أصبحت صفحة الصفقات تفتح على «موجز اليوم»: ترى بلمحة كم وحدة بيعت في دبي أمس، وإجمالي القيمة، والسعر الوسيط، ونسبة البيع على الخارطة، إضافة إلى أنشط المناطق وأكبر صفقة في اليوم. الأرقام تأتي مباشرة من دائرة الأراضي والأملاك في دبي، والصفحة تذكر بوضوح كم يوماً تتأخر البيانات بدل تقديمها كأنها لحظية. اضغط على اسم أي منطقة لتنتقل مباشرة إلى صفقاتها. ويمكن للوسيط نسخ الموجز كاملاً بضغطة واحدة لإرساله إلى عميله.',
+  },
+  {
     date: '2026-08-09',
     kind: 'new',
     zh: '收益模拟器现在人人可用了 —— 不用是经纪。在任意楼盘的户型页点「模拟这套的收益」，它会拿这套房的真实总价、这个区的真实租金回报和物业费跑 1 万次模拟，把「七年后大概拿回多少」连同好、中、差三种情形一起给你。每个数字旁边都标了它是真实数据还是假设。',

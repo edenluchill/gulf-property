@@ -5,6 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DailyBrief from '../components/DailyBrief'
 import { Flame } from 'lucide-react'
+import { API_BASE_URL } from '../lib/config'
+
+/** 看过哪一天的速报（存日期，不是布尔 —— 每天都有新的一份）。 */
+const BRIEF_SEEN_KEY = 'pinzos-brief-seen'
 import { Helmet } from 'react-helmet-async'
 import { useTranslation } from 'react-i18next'
 import { SlidersHorizontal, ChevronDown, Search, X } from 'lucide-react'
@@ -94,16 +98,38 @@ export default function TransactionsPage() {
   const scrollChromeRef = useRef<HTMLDivElement>(null)
   useScrollChrome(scrollChromeRef)
   /**
-   * 🔴 **默认停在速报。**
+   * 默认回到「成交」—— 这一页的名字就是成交记录查询，进来的人预期是查东西。
    *
-   * 第一版把速报塞在筛选器和结果**中间** —— owner 一句话点破：
-   * 「新闻放在 filter 和结果中间？是人类能想的出来的吗？而且搜索时很碍事。」
-   * 他是对的:那个位置让人以为「我要的结果呢」,而且搜索时它一直杵在中间。
-   *
-   * 现在是并列的两个 section,互不打扰。默认落在速报,因为进这一页的人
-   * 大多数并没有具体要查的东西 —— 先给他内容,想查的人点一下就切过去。
+   * 速报是并列的第三档，不抢默认位；**未读时靠 tab 上的红点召唤**，
+   * 而不是靠占住第一屏。（第一版把它塞在筛选器和结果中间，owner 原话：
+   * 「新闻放在 filter 和结果中间？是人类能想的出来的吗？」）
    */
-  const [mode, setMode] = useState<Mode>('brief')
+  const [mode, setMode] = useState<Mode>('sales')
+
+  /**
+   * 速报未读红点。
+   *
+   * 判据是**日期**不是「点过没」：每天出一份新的，看过昨天的不等于看过今天的。
+   * 存 localStorage 而不是后端 —— 匿名访客也该有这个提醒，
+   * 而他们没有账号可挂。
+   */
+  const [briefDate, setBriefDate] = useState<string | null>(null)
+  const [briefSeen, setBriefSeen] = useState<string | null>(() => {
+    try { return localStorage.getItem(BRIEF_SEEN_KEY) } catch { return null }
+  })
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/market/daily-brief`)
+      .then(r => r.json())
+      .then(j => { if (j?.success) setBriefDate(j.data.date) })
+      .catch(() => { /* 拿不到就不显示红点，不打扰 */ })
+  }, [])
+  const briefUnread = !!briefDate && briefDate !== briefSeen
+  // 切过去就算读过了 —— 停留时长之类的判据在这里是过度设计
+  useEffect(() => {
+    if (mode !== 'brief' || !briefDate || briefDate === briefSeen) return
+    try { localStorage.setItem(BRIEF_SEEN_KEY, briefDate) } catch { /* 无痕模式忽略 */ }
+    setBriefSeen(briefDate)
+  }, [mode, briefDate, briefSeen])
   const [filters, setFilters] = useState<TxFilters>({ areas: [], rooms: [] })
   // 统一搜索:区域 / 楼盘 / 楼栋三类候选进同一个框,选中的一律进 picks。
   // 楼盘 = 该盘全部楼栋;楼栋 = 只看这一栋 —— 经纪要的「社区名查全部 or 分栋单查」。
@@ -270,6 +296,9 @@ export default function TransactionsPage() {
           >
             {m === 'brief' && <Flame className="h-3.5 w-3.5 text-orange-500" />}
             {m === 'brief' ? t('briefTab') : m === 'sales' ? t('misc:sales2') : t('misc:rent')}
+            {m === 'brief' && briefUnread && (
+              <span className="ms-0.5 h-1.5 w-1.5 rounded-full bg-rose-500" aria-label="new" />
+            )}
           </button>
         ))}
       </div>
