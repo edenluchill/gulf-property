@@ -7,7 +7,7 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchMyRole } from '../lib/billingApi'
+import { fetchMyRoleResult } from '../lib/billingApi'
 
 const CACHE_KEY = 'pinzos-role' // sessionStorage:避免每次导航都打接口
 
@@ -30,10 +30,17 @@ export default function RoleSelectRedirect() {
       if (sessionStorage.getItem(CACHE_KEY)) return
     } catch { /* noop */ }
     let stale = false
-    void fetchMyRole().then((role) => {
+    void fetchMyRoleResult().then((r) => {
       if (stale) return
-      if (role) {
-        try { sessionStorage.setItem(CACHE_KEY, role) } catch { /* noop */ }
+      /**
+       * 🔴 **只有服务端明确说「这人没有角色」时才拦人。**
+       * 读失败(网络断/5xx)时什么都不做 —— 把网络抖动翻译成「你没有身份」,
+       * 会把一个正在用产品的付费经纪扔到选角色页。已经发生过两次,
+       * 其中一个是我们唯一收到过回信的客户(见 billingApi.fetchMyRoleResult 注释)。
+       */
+      if (!r.ok) return
+      if (r.role) {
+        try { sessionStorage.setItem(CACHE_KEY, r.role) } catch { /* noop */ }
       } else {
         navigate('/choose-role')
       }

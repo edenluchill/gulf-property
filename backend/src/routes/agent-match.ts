@@ -165,6 +165,50 @@ const NEXT_IN_ROTATION = `
 `
 
 /**
+ * ── 给买家挑候选:**本轮还没拿过 lead 的人里随机取 N 个** ────────────────────
+ *
+ * 🔴 **不能沿用 NEXT_IN_ROTATION 的 ORDER BY。** 那个是「最少曝光优先」的确定性
+ *    排序 —— 只要队首那几个人一直没成交,他们的计数就一直不涨,于是**天天都是同样
+ *    三张脸**。owner 2026-08-12:「假如这 3 个人一直没有拿到客户,那每天都是他们吗?
+ *    不然都以为网站是他们的了。不应该一次只随机这 3 个,而是全员没拿到的随机显示」。
+ *
+ * 公平性没有丢,反而更强了:
+ *   · 资格集合还是「本轮没拿过 lead 的人」—— 拿到 lead 的人在本轮就不再出现,
+ *     所以「一轮一人一条」这个硬保证完全没动;
+ *   · 在这个集合里**每个人被看见的概率相等**,而不是永远只有队首三个人被看见。
+ *
+ * ⚠️ 这只影响**展示**。真正落库的挑人(GET /)仍然走 NEXT_IN_ROTATION 的公平顺序;
+ *    买家点了谁,prefer 分支只校验「他还在池子里」,不要求他在队首,所以随机展示
+ *    不会被 prefer 校验挡掉。
+ */
+const CANDIDATES_IN_ROUND = `
+  WITH cur AS (
+    SELECT COALESCE(MAX(round_no), 1) AS r FROM agent_match_assignments WHERE round_no IS NOT NULL
+  )
+  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
+    ${POOL_JOIN}
+    CROSS JOIN cur
+    LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+   WHERE ${POOL_WHERE}
+     AND NOT EXISTS (
+       SELECT 1 FROM agent_match_assignments x
+        WHERE x.agent_id = a.id AND x.round_no = cur.r
+     )
+   ORDER BY random()
+   LIMIT $2
+`
+
+/** 本轮全员都拿过了 → 新一轮,同样随机。 */
+const CANDIDATES_NEW_ROUND = `
+  SELECT a.id, a.display_name, a.photo_url, a.brand, a.rera_brn, a.phone, a.whatsapp, a.public_email, b.name AS brokerage_name
+    ${POOL_JOIN}
+    LEFT JOIN lt_brokerages b ON b.id = a.brokerage_id
+   WHERE ${POOL_WHERE}
+   ORDER BY random()
+   LIMIT $2
+`
+
+/**
  * 上面那条一个人都挑不出来 = **本轮 32 个人全拿过了** → 开新一轮。
  * 这里不带 round 条件,纯按同轮内的顺序挑。
  */
@@ -237,9 +281,10 @@ router.get('/next', async (req: Request, res: Response) => {
 router.get('/candidates', async (req: Request, res: Response) => {
   const want = Math.min(5, Math.max(1, Number(req.query.n) || 3))
   try {
-    let { rows } = await pool.query(NEXT_IN_ROTATION, [DISPATCH_EXCLUDED_EMAILS, want])
+    // 随机取,不是取队首 —— 见 CANDIDATES_IN_ROUND 的说明(否则天天同样三张脸)
+    let { rows } = await pool.query(CANDIDATES_IN_ROUND, [DISPATCH_EXCLUDED_EMAILS, want])
     // 本轮全拿过了 → 开新一轮
-    if (!rows.length) ({ rows } = await pool.query(NEXT_NEW_ROUND, [DISPATCH_EXCLUDED_EMAILS, want]))
+    if (!rows.length) ({ rows } = await pool.query(CANDIDATES_NEW_ROUND, [DISPATCH_EXCLUDED_EMAILS, want]))
     res.json({ agents: rows.map((r) => ({ ...agentCard(r), id: String(r.id) })) })
   } catch (err) {
     console.error('[agent-match] candidates failed:', err)

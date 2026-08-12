@@ -47,7 +47,14 @@ function getDeviceType(): DeviceType {
 
 export default function ProjectDetailPage() {
   const { t, i18n } = useTranslation(['project', 'common'])
-  const { id } = useParams<{ id: string }>()
+  const { id: rawId } = useParams<{ id: string }>()
+  /**
+   * 🔴 路由参数是**字符串**,所以 `/project/undefined` 会带来一个字面量 "undefined",
+   *    `if (id)` 拦不住它。生产 30 天里:14 次 `/project/undefined` 访问 / 7 个人,
+   *    连带 `/api/residential-projects/undefined/insights` 报了 7 次 500。
+   *    在这里挡掉,后面按「项目不存在」走正常的空状态。
+   */
+  const id = rawId && rawId !== 'undefined' && rawId !== 'null' ? rawId : undefined
   const [searchParams, setSearchParams] = useSearchParams()
   const [project, setProject] = useState<any>(null)
   const [insights, setInsights] = useState<ProjectInsights | null>(null)
@@ -90,6 +97,10 @@ export default function ProjectDetailPage() {
           console.error('Error fetching project:', error)
           setLoading(false)
         })
+    } else {
+      // id 是 undefined/null 这种垃圾值 —— 别一直转圈,直接落到「项目不存在」
+      setLoading(false)
+      setProject(null)
     }
   }, [id])
 

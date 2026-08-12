@@ -105,8 +105,14 @@ export async function peekNextAgent(projectId?: string): Promise<(MatchedAgent &
 /**
  * 给买家挑的候选名单 —— **只读,不落库、不消耗轮次**。
  *
- * 后端按轮值顺序取队首 N 个(不是真随机 —— 真随机会跳过等最久的人,轮值就白做了)。
- * **展示顺序在这里打乱**:买家看着是随机的,但被提名的机会仍严格按轮值走。
+ * 🔴 **后端已经是「本轮没拿过 lead 的人里随机取 N 个」**(2026-08-12 改)。
+ *    在这之前是取轮值队首 N 个 —— 队首那几个人只要一直没成交,计数就不涨,
+ *    于是天天都是同样三张脸,看着像这网站是他们家的。
+ *    「一轮一人一条」的硬保证没变(拿到 lead 的人本轮就不再出现),
+ *    变的是**每个还没拿到的人被看见的概率相等**。
+ *
+ * 下面这个 Fisher–Yates 只是再打乱一下位置顺序(第一个位置有天然优势),
+ * 保留它成本为零。
  */
 export async function fetchCandidates(projectId?: string, n = 3): Promise<(MatchedAgent & { id: string })[]> {
   try {

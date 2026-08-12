@@ -357,26 +357,65 @@ async function authHeaders(json = false): Promise<Record<string, string>> {
 
 export type UserRole = 'buyer' | 'agent' | 'agency' | 'developer'
 
-export async function fetchMyRole(): Promise<UserRole | null> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/me/profile`, { headers: await authHeaders() })
-    if (!res.ok) return null
-    const j = await res.json()
-    return j.role || null
-  } catch {
-    return null
+/**
+ * 🔴 **「读不到」和「没有角色」是两件事,永远不许合并成 null。**
+ *
+ * 2026-08-12 实测的真实损失:这个函数原来在**三种完全不同的情况**下都回 null ——
+ * 真的没角色 / HTTP 挂了 / 网络断了。而 RoleSelectRedirect 把 null 一律当成
+ * 「没角色」→ 把人送去 /choose-role。
+ *
+ * 后果(生产库查出来的两个真人):
+ *   · jencruise3@gmail.com(08-11 注册的经纪)—— **179 次 /choose-role**,
+ *     8-12 那次是一秒内几十条 `online:false` 的刷新失败,她被卡死在选角色页;
+ *   · slavynchuk94@gmail.com —— 我们唯一收到过回信的用户。08-07 回访,
+ *     一秒内 6 条网络错误 → 被踢回 /choose-role → 看了一眼价格 → 走了。
+ *     她 30 天看了 16 次定价页,全站最高。
+ *
+ * 所以:失败就说失败(`ok:false`),调用方**必须**自己决定怎么办 ——
+ * 而不是替它猜一个「这人没角色」。
+ */
+export type RoleResult = { ok: true; role: UserRole | null } | { ok: false; role: null }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+export async function fetchMyRoleResult(): Promise<RoleResult> {
+  // 瞬时抖动重试两次(200ms / 600ms)。离线时直接放弃 —— 重试只会加重风暴,
+  // 而 navigator.onLine=false 正是 jencruise3 那一秒里的状态。
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) break
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/me/profile`, { headers: await authHeaders() })
+      if (res.ok) return { ok: true, role: ((await res.json()).role as UserRole) || null }
+      // 4xx 是**确定的答复**(没登录/没权限),重试没有意义,但也不代表"没角色"
+      if (res.status < 500) return { ok: false, role: null }
+    } catch { /* 网络层断了 → 落到下面重试 */ }
+    if (attempt < 2) await sleep(attempt === 0 ? 200 : 600)
   }
+  return { ok: false, role: null }
 }
 
+/** 老签名的兼容包装 —— 只给「读不到就当没有」也无所谓的地方用。 */
+export async function fetchMyRole(): Promise<UserRole | null> {
+  return (await fetchMyRoleResult()).role
+}
+
+/**
+ * 落角色。**失败必须让调用方看得见** —— RoleSelectPage 原来是
+ * `if (!ok) return`,用户点了「我是经纪」什么也没发生,只能一遍遍点。
+ * 这是 jencruise3 那 179 次的另一半。
+ */
 export async function setMyRole(role: UserRole): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/me/profile`, {
-      method: 'POST',
-      headers: await authHeaders(true),
-      body: JSON.stringify({ role }),
-    })
-    return res.ok
-  } catch {
-    return false
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/me/profile`, {
+        method: 'POST',
+        headers: await authHeaders(true),
+        body: JSON.stringify({ role }),
+      })
+      if (res.ok) return true
+      if (res.status < 500) return false   // 确定的拒绝,重试也一样
+    } catch { /* 网络层 → 重试 */ }
+    if (attempt < 2) await sleep(attempt === 0 ? 300 : 900)
   }
+  return false
 }

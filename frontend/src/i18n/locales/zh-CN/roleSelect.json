@@ -1,16 +1,28 @@
 {
   "buyerTitle": "买家",
   "buyerDesc": "我在找房、研究迪拜楼市",
-  "buyerBullets": ["地图与市场数据不限时", "收藏 · Luna 助手 · 5年回报分析"],
+  "buyerBullets": [
+    "地图与市场数据不限时",
+    "收藏 · Luna 助手 · 5年回报分析"
+  ],
   "agentTitle": "经纪人",
   "agentDesc": "我是独立地产经纪",
-  "agentBullets": ["客户 CRM · 品牌报告 · 实时带看", "Lead 推送"],
+  "agentBullets": [
+    "客户 CRM · 品牌报告 · 实时带看",
+    "Lead 推送"
+  ],
   "agencyTitle": "经纪公司",
   "agencyDesc": "我们是团队或经纪公司",
-  "agencyBullets": ["多席位共享 · 团队管理", "Lead 独占优先 · 品牌定制"],
+  "agencyBullets": [
+    "多席位共享 · 团队管理",
+    "Lead 独占优先 · 品牌定制"
+  ],
   "developerTitle": "开发商",
   "developerDesc": "我们开发/销售楼盘项目",
-  "developerBullets": ["上传楼书 · AI 解析 · 项目管理", "销售工具 + 楼盘全站曝光"],
+  "developerBullets": [
+    "上传楼书 · AI 解析 · 项目管理",
+    "销售工具 + 楼盘全站曝光"
+  ],
   "pleaseSignInFirst": "请先登录",
   "signInToChoose": "登录后即可选择你的身份,开启对应的工作台",
   "signIn": "去登录",
@@ -32,5 +44,6 @@
   "nameOnMembershipCard": "姓名(会员卡署名)",
   "yourName": "您的姓名",
   "continueToPlans": "继续选择套餐",
-  "back": "返回重选身份"
+  "back": "返回重选身份",
+  "saveFailed": "没能保存,可能是网络不稳。请再点一次；如果一直不行，刷新页面或换个网络试试。"
 }

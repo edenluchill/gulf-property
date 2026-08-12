@@ -58,6 +58,13 @@ export default function RoleSelectPage() {
   const t = tRaw as (k: string, o?: Record<string, unknown>) => string
   const { user, loading: authLoading } = useAuth()
   const [saving, setSaving] = useState<UserRole | null>(null)
+  /**
+   * 🔴 保存失败必须**说出来**。原来是 `if (!ok) return` —— 用户点了「我是经纪」,
+   *    页面一动不动,他只能一遍遍点。生产库里 jencruise3@gmail.com 在这一页留下了
+   *    **179 次**记录(2026-08-11 注册的经纪,当天还在撞)。静默失败 = 用户以为
+   *    网站坏了,而我们这边只能看到他一直在这一页。
+   */
+  const [saveErr, setSaveErr] = useState(false)
   // 选付费角色后先收集「认证信息」(姓名 + 可选头像)→ 再进付款,证书用这份信息。
   const [pending, setPending] = useState<typeof ROLE_CARDS[number] | null>(null)
 
@@ -97,9 +104,10 @@ export default function RoleSelectPage() {
       return
     }
     setSaving(card.id)
-    const ok = await setMyRole(card.id)
+    setSaveErr(false)
+    const ok = await setMyRole(card.id)   // 内部已经重试过 2 次
     setSaving(null)
-    if (!ok) return
+    if (!ok) { setSaveErr(true); return }
     try { sessionStorage.setItem('pinzos-role', card.id) } catch { /* noop */ }
     // 整页跳转:角色态(Header/经纪台)处处即时一致
     window.location.assign('/')
@@ -187,6 +195,15 @@ export default function RoleSelectPage() {
             {t('roleSelect:pickTheRoleThat')}
           </span>
         </div>
+
+        {/* 保存失败 —— 重试过三次还是不行,如实告诉他,并且**保留他刚才点的那张卡**
+            的可点击状态。不说的话他只会一直点(生产里真发生过 179 次)。 */}
+        {saveErr && (
+          <div className="mx-auto mt-4 flex max-w-xl items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs leading-relaxed text-rose-700">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
+            <span>{t('roleSelect:saveFailed')}</span>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {ROLE_CARDS.map((c) => (

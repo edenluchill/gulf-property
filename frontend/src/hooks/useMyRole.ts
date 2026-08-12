@@ -9,11 +9,15 @@
  * 付款/开试用成功才落 role)。结果:侧栏显示「经纪人」,服务端却认为你是买家,
  * 于是试用领取卡(按服务端 role 判定资格)死活不出现,用户一脸问号。
  * 缓存可以抢跑,但不能撒谎 —— 服务端一回来就必须纠正它。
+ *
+ * ⚠️ 但「服务端**没回来**」不等于「服务端说你没有」(2026-08-12 修)。
+ * 原来网络一断就把缓存清了,侧栏当场把一个经纪降级成买家。
+ * 现在只有 `ok:true` 才允许覆盖缓存。
  */
 import { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
-import { fetchMyRole, type UserRole } from '../lib/billingApi'
+import { fetchMyRoleResult, type UserRole } from '../lib/billingApi'
 
 const KEY = 'pinzos-role'
 
@@ -31,13 +35,15 @@ export function useMyRole(): UserRole | null {
       return
     }
     let stale = false
-    void fetchMyRole().then((r) => {
+    void fetchMyRoleResult().then((res) => {
       if (stale) return
+      // 读失败 → 保持现状(上次已知的角色)。清掉的话,网络抖一下经纪就变买家。
+      if (!res.ok) return
       // 服务端说了算:包括「服务端还没有 role」这种情况 —— 那也要把乐观缓存清掉,
       // 否则用户会一直看到一个自己其实并不拥有的身份。
-      setRole(r ?? null)
+      setRole(res.role)
       try {
-        if (r) sessionStorage.setItem(KEY, r)
+        if (res.role) sessionStorage.setItem(KEY, res.role)
         else sessionStorage.removeItem(KEY)
       } catch { /* noop */ }
     })

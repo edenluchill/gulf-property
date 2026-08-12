@@ -1,16 +1,28 @@
 {
   "buyerTitle": "Buyer",
   "buyerDesc": "I'm buying or researching",
-  "buyerBullets": ["Unlimited map & market data", "Favorites · Luna AI · 5-yr ROI"],
+  "buyerBullets": [
+    "Unlimited map & market data",
+    "Favorites · Luna AI · 5-yr ROI"
+  ],
   "agentTitle": "Agent",
   "agentDesc": "I'm a real estate agent",
-  "agentBullets": ["Client CRM · branded reports · live tours", "Lead flow"],
+  "agentBullets": [
+    "Client CRM · branded reports · live tours",
+    "Lead flow"
+  ],
   "agencyTitle": "Agency",
   "agencyDesc": "We're a team or brokerage",
-  "agencyBullets": ["Multiple seats · team management", "First pick of leads · white-label"],
+  "agencyBullets": [
+    "Multiple seats · team management",
+    "First pick of leads · white-label"
+  ],
   "developerTitle": "Developer",
   "developerDesc": "We develop & sell projects",
-  "developerBullets": ["Upload brochures · AI parsing · projects", "Sales tools + full exposure"],
+  "developerBullets": [
+    "Upload brochures · AI parsing · projects",
+    "Sales tools + full exposure"
+  ],
   "pleaseSignInFirst": "Please sign in first",
   "signInToChoose": "Sign in to choose your role and unlock your workspace",
   "signIn": "Sign in",
@@ -32,5 +44,6 @@
   "nameOnMembershipCard": "Name (on membership card)",
   "yourName": "Your name",
   "continueToPlans": "Continue to plans",
-  "back": "Back"
+  "back": "Back",
+  "saveFailed": "We couldn't save that — it may be your connection. Please tap again; if it keeps failing, reload the page or switch networks."
 }

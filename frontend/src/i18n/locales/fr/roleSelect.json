@@ -44,5 +44,6 @@
   "nameOnMembershipCard": "Nom (sur la carte de membre)",
   "yourName": "Votre nom",
   "continueToPlans": "Continuer vers les abonnements",
-  "back": "Retour"
+  "back": "Retour",
+  "saveFailed": "Enregistrement impossible — probablement la connexion. Réessayez ; si le problème persiste, rechargez la page ou changez de réseau."
 }
