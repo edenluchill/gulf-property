@@ -464,10 +464,17 @@ export default function ProjectDetailPage() {
             {/* Mobile: Compact header + gallery only */}
             {isMobile ? (
               <>
-                {/* Mobile compact header */}
+                {/**
+                  * Mobile compact header —— **标题和操作条各占一行,别并排**。
+                  *
+                  * owner 2026-08-11 反馈「手机版有问题」:并排时那颗操作胶囊(找顾问 +
+                  * 三个图标 ≈ 190px)在 367px 的屏上吃掉一半多,项目名被截成「Terr…」、
+                  * 开发商只剩一个字母、收益徽章折成三行。
+                  * 标题独占整行之后这些全都放得下,胶囊靠右单独一行也更好点。
+                  */}
                 <div className="bg-white border-b py-3 px-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0 me-3">
+                  <div className="flex flex-col gap-2">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h1 className="text-base font-bold text-slate-900 truncate">{project.project_name}</h1>
                         {/* Sold Out Badge */}
@@ -506,7 +513,9 @@ export default function ProjectDetailPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex-shrink-0">{actionBar(true)}</div>
+                    {/* 手机上后三颗仍收成纯图标(compact),但「找顾问」留字 —— 一行的
+                        宽度够,而它是这一排里唯一带来生意的那颗 */}
+                    <div className="self-end">{actionBar(true)}</div>
                   </div>
                 </div>
 
