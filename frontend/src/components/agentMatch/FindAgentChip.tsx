@@ -7,14 +7,20 @@
  * ⚠️ 项目页有 mobile/tablet/desktop **三套各自独立的 header**,这个件要在三处
  *    各引一次。所以 ProjectDetailPage 里把它存成一个变量再三处引用 ——
  *    markup 只有一份,漏改的风险降到最低。
+ *
+ * 🔴 **必须用 ui/Button(variant=outline),不许自己写药丸**(owner 2026-08-11:
+ *    「这个 button style 不 consistent」)。之前它是 rounded-full + 青绿渐变 + 11px 字,
+ *    杵在一排 rounded-md 白底描边按钮中间像是别的网站抠过来的。
+ *    现在只保留一点 teal 描边/文字做强调 —— 形状、高度、圆角、字号全部随大流。
  */
 import { useEffect, useState } from 'react'
 import { UserRoundSearch } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Button } from '../ui/button'
 import { peekNextAgent } from '../../lib/agentMatchApi'
 import AgentMatchModal from './AgentMatchModal'
 
-export default function FindAgentChip({ projectId, projectName }: { projectId?: string; projectName?: string }) {
+export default function FindAgentChip({ projectId, projectName, className }: { projectId?: string; projectName?: string; className?: string }) {
   const { t } = useTranslation('misc')
   /** 只判断池子里有没有人 —— **按钮上不显示是谁**(像 Uber,点开才知道)。 */
   const [hasPool, setHasPool] = useState(false)
@@ -33,12 +39,18 @@ export default function FindAgentChip({ projectId, projectName }: { projectId?: 
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        data-testid="find-agent"   /* 巡检脚本按它定位 —— 别按中文标签,改名就全瞎 */
+        onClick={() => setOpen(true)}
         title={t('agentMatch.cta')}
-        className="inline-flex items-center gap-1.5 rounded-full border border-teal-300/60 bg-gradient-to-b from-teal-200/90 to-emerald-100/90 px-3 py-1.5 text-xs font-semibold text-teal-800 transition hover:from-teal-200 hover:to-emerald-100 active:scale-95">
-        <UserRoundSearch className="h-3.5 w-3.5" />
+        className={`border-teal-200 text-teal-700 hover:bg-teal-50 hover:text-teal-800 ${className ?? ''}`}
+      >
+        <UserRoundSearch className="h-4 w-4 me-1.5" />
         {t('agentMatch.dockLabel')}
-      </button>
+      </Button>
       <AgentMatchModal open={open} onClose={() => setOpen(false)} source="project" projectId={projectId} projectName={projectName} />
     </>
   )

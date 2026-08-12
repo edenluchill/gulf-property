@@ -138,6 +138,8 @@ export default function ProjectDetailPage() {
    * (这一页已经因为"三套 JSX 各写一遍"栽过两次)。
    */
   const agentChip = <FindAgentChip projectId={project?.id} projectName={project?.project_name} />
+  /** tablet 那一排是 h-10,chip 默认 h-9 —— 只有这一处需要拔高对齐 */
+  const agentChipTablet = <FindAgentChip projectId={project?.id} projectName={project?.project_name} className="h-10" />
 
   const isFav = project ? isProjectFavorite(project.id) : false
 
@@ -591,7 +593,7 @@ export default function ProjectDetailPage() {
                       </Button>
                       <Button variant="outline" size="sm" className="h-10 px-3" onClick={() => setShowCardEditor(true)}>名片</Button>
                       {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
-                      {agentChip}
+                      {agentChipTablet}
                       <Button
                         variant="outline"
                         size="icon"

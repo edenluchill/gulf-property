@@ -435,7 +435,7 @@
   },
   "metricWindowNote": "所有指标都按这个时间窗口重算。",
   "agentMatch": {
-    "cta": "找真人帮忙",
+    "cta": "联系房产顾问",
     "ctaSub": "我们会为你匹配一位房产顾问",
     "roleFallback": "房产顾问",
     "yourContact": "你的微信 / 电话（选填）",
@@ -480,7 +480,7 @@
     "mustReachOut": "你没有留联系方式，所以顾问没法主动找你 —— 点上面的按钮把消息发出去，他才知道你是谁。",
     "noContactHint": "这位买家拿走了你的 WhatsApp / 电话，但没留自己的联系方式 —— 他很可能会直接发消息给你，留意陌生号码。",
     "markDead": "没联系上 · 退回轮次",
-    "dockLabel": "找真人",
+    "dockLabel": "找顾问",
     "pickHint": "选一位顾问，他会联系你",
     "pickOne": "先选一位顾问",
     "tryAgain": "暂时没排到人，稍后再试",

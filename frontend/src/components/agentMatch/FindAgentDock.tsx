@@ -7,6 +7,10 @@
  *    现在:图标 + 一行字,规格照抄「打字」那颗(w-[52px] / rounded-s-2xl /
  *    9px 标签 / 玻璃质感),三颗按钮才是一套东西。
  *
+ * 🔴 **底色必须跟「打字」的静默态一样是灰玻璃**(owner 2026-08-11:「地图上那个也是」)。
+ *    这一列里 **teal 渐变 = 激活态**(打字面板开着时才变青绿),常态就涂成 teal
+ *    等于永远显示自己被按下了,跟旁边两颗不是一套。强调只留在图标颜色上。
+ *
  * 🔴 **必须走 LunaRail,不能自己写 fixed**(仓库铁律)。自己写会和测距条 /
  *    画笔调色板 / 带看底栏互相压,手机地址栏一收一放还会被裁掉。
  *    Luna 没渲染时兜底回 BottomDock —— 不能让入口凭空消失。
@@ -43,10 +47,11 @@ export default function FindAgentDock({ hidden }: { hidden?: boolean }) {
 
   const btn = (
     <button type="button" onClick={() => setOpen(true)}
+      data-testid="find-agent"   /* 巡检脚本按它定位 —— 别按中文标签,改名就全瞎 */
       aria-label={t('agentMatch.cta')} title={t('agentMatch.cta')}
-      className="flex w-[52px] flex-col items-center gap-0.5 rounded-s-2xl border border-teal-300/60 bg-gradient-to-b from-teal-200/90 to-emerald-100/90 px-1.5 py-2 shadow-md backdrop-blur-xl transition-all duration-300 hover:from-teal-200 hover:to-emerald-100 hover:shadow-lg">
-      <UserRoundSearch className="h-4 w-4 text-teal-700" />
-      <span className="text-[9px] font-semibold tracking-wide text-teal-700">{t('agentMatch.dockLabel')}</span>
+      className="flex w-[52px] flex-col items-center gap-0.5 rounded-s-2xl border border-slate-300/50 bg-gradient-to-b from-slate-200/90 to-slate-100/90 px-1.5 py-2 shadow-md backdrop-blur-xl transition-all duration-300 hover:from-slate-200 hover:to-slate-100 hover:shadow-lg">
+      <UserRoundSearch className="h-4 w-4 text-teal-600" />
+      <span className="text-[9px] font-semibold tracking-wide text-slate-600">{t('agentMatch.dockLabel')}</span>
     </button>
   )
 
