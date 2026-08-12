@@ -514,7 +514,17 @@
     "filterDone": "Followed up",
     "roundLabel": "Round {{n}}",
     "roundNone": "Returned to rotation",
-    "openAdminDispatch": "Open the dispatch panel"
+    "openAdminDispatch": "Open the dispatch panel",
+    "type_whatsapp": "WhatsApp",
+    "type_phone": "Phone",
+    "type_email": "Email",
+    "ph_whatsapp": "+971 50 123 4567",
+    "ph_phone": "+971 50 123 4567",
+    "ph_email": "you@example.com",
+    "invalid_phone": "Include the country code, e.g. +971 50 123 4567",
+    "invalid_email": "Please enter a valid email address",
+    "contactWhy": "Optional. Leave it and the advisor can reach out to you.",
+    "contactWhyRequired": "Required. This advisor's address stays private, so they can only reply to you."
   },
   "activity": {
     "title": "My stuff",

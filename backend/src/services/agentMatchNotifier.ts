@@ -33,6 +33,8 @@ interface PendingRow {
     id: string
     created_at: string
     buyer_contact: string | null
+    /** 'whatsapp' | 'phone' | 'email' —— 买家自己选的,决定经纪该用哪种方式联系 */
+    buyer_contact_type: string | null
     buyer_note: string | null
     buyer_lang: string | null
     project_name: string | null
@@ -52,7 +54,8 @@ async function pending(): Promise<PendingRow[]> {
             array_agg(m.id::text ORDER BY m.created_at) AS ids,
             json_agg(json_build_object(
               'id', m.id::text, 'created_at', m.created_at,
-              'buyer_contact', m.buyer_contact, 'buyer_note', m.buyer_note,
+              'buyer_contact', m.buyer_contact, 'buyer_contact_type', m.buyer_contact_type,
+              'buyer_note', m.buyer_note,
               'buyer_lang', m.buyer_lang,
               'project_name', (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id)
             ) ORDER BY m.created_at) AS leads
@@ -72,6 +75,13 @@ async function pending(): Promise<PendingRow[]> {
       GROUP BY m.agent_id, a.email, a.display_name, a.brand`
   )
   return rows as PendingRow[]
+}
+
+/** 买家选的联系方式类型 → 邮件里的前缀。未知类型不加前缀(老数据没有这个字段) */
+const CONTACT_LABEL: Record<string, string> = {
+  whatsapp: 'WhatsApp ',
+  phone: '电话 ',
+  email: '邮箱 ',
 }
 
 function compose(r: PendingRow): { subject: string; text: string } {
@@ -111,7 +121,8 @@ function compose(r: PendingRow): { subject: string; text: string } {
     return [
       n > 1 ? `───────── 线索 ${i + 1}/${n} ─────────` : '─────────────────',
       L.project_name ? `项目:${L.project_name}` : '来源:地图',
-      `联系方式:${L.buyer_contact}`,
+      // 带上类型:经纪一眼知道该发 WhatsApp 还是打电话还是写邮件
+      `联系方式:${CONTACT_LABEL[L.buyer_contact_type || ''] || ''}${L.buyer_contact}`,
       `留言:${L.buyer_note || '(未填写)'}`,
       `买家语言:${L.buyer_lang || '未知(按英文处理)'}`,
       '',

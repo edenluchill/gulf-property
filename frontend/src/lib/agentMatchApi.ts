@@ -126,16 +126,28 @@ export async function fetchCandidates(projectId?: string, n = 3): Promise<(Match
   }
 }
 
-/** 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。 */
+/**
+ * 买家要联系方式。留言和自己的联系方式都可选 —— 强制填会把大部分人挡在门外。
+ *
+ * ⚠️ `contact` 必须是**归一化后**的值(见 lib/contactValidation),`contactType`
+ *    说明它是 WhatsApp / 电话 / 邮箱。后端会用同一套规则再验一遍并按类型存 ——
+ *    传不合法的值会被 400 挡回来(前端已经拦过一道,这里只防直接打接口)。
+ */
 export async function revealContact(
-  matchId: number, buyer?: { contact?: string; note?: string; lang?: string },
+  matchId: number,
+  buyer?: { contact?: string; contactType?: string; note?: string; lang?: string },
 ): Promise<RevealedContact | null> {
   const res = await fetch(`${BASE}/${matchId}/reveal`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     // lang = **买家**当前的界面语言。经纪拿到的联系模板按它生成 ——
     // 收信的是买家,不是经纪。默认英文(后端 outreachLang 回落)。
-    body: JSON.stringify({ contact: buyer?.contact || '', note: buyer?.note || '', lang: buyer?.lang || '' }),
+    body: JSON.stringify({
+      contact: buyer?.contact || '',
+      contactType: buyer?.contactType || '',
+      note: buyer?.note || '',
+      lang: buyer?.lang || '',
+    }),
   })
   if (!res.ok) return null
   return await res.json()
@@ -148,6 +160,8 @@ export interface MyMatch {
   created_at: string
   revealed_at: string | null
   buyer_contact: string | null
+  /** 买家自己选的类型:'whatsapp' | 'phone' | 'email'。**老记录是 null**(字段上线前) */
+  buyer_contact_type?: string | null
   buyer_note: string | null
   agent_ack_at: string | null
   source: string

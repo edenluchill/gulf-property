@@ -514,7 +514,17 @@
     "filterDone": "Relancés",
     "roundLabel": "Tour {{n}}",
     "roundNone": "Remis en rotation",
-    "openAdminDispatch": "Ouvrir le panneau d’attribution"
+    "openAdminDispatch": "Ouvrir le panneau d’attribution",
+    "type_whatsapp": "WhatsApp",
+    "type_phone": "Téléphone",
+    "type_email": "E-mail",
+    "ph_whatsapp": "+971 50 123 4567",
+    "ph_phone": "+971 50 123 4567",
+    "ph_email": "vous@exemple.com",
+    "invalid_phone": "Indiquez l'indicatif du pays, ex. +971 50 123 4567",
+    "invalid_email": "Veuillez saisir une adresse e-mail valide",
+    "contactWhy": "Facultatif. Laissez-le et le conseiller pourra vous contacter.",
+    "contactWhyRequired": "Obligatoire. L'adresse de ce conseiller reste privée : il ne peut que vous répondre."
   },
   "activity": {
     "title": "Mes éléments",

@@ -513,7 +513,17 @@
     "filterDone": "已跟进",
     "roundLabel": "第 {{n}} 轮",
     "roundNone": "已退回轮值",
-    "openAdminDispatch": "去后台看派单"
+    "openAdminDispatch": "去后台看派单",
+    "type_whatsapp": "WhatsApp",
+    "type_phone": "电话",
+    "type_email": "邮箱",
+    "ph_whatsapp": "+971 50 123 4567",
+    "ph_phone": "+971 50 123 4567",
+    "ph_email": "you@example.com",
+    "invalid_phone": "请填写带国家区号的号码，例如 +971 50 123 4567",
+    "invalid_email": "请填写正确的邮箱地址",
+    "contactWhy": "选填。留了顾问才能主动联系你。",
+    "contactWhyRequired": "必填。这位顾问的地址不对外公开，只能由他回复你。"
   },
   "activity": {
     "title": "我的东西",

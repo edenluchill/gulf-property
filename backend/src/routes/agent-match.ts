@@ -24,6 +24,7 @@ import { requireAuth } from '../middleware/auth'
 import { requireOwner } from '../middleware/requireOwner'
 import { DISPATCH_EXCLUDED_EMAILS } from '../lib/internalAccounts'
 import { buildOutreach, outreachLang } from '../lib/agentOutreachTemplate'
+import { contactError, isContactType, normalizeContact, type ContactType } from '../lib/contactValidation'
 
 const router = Router()
 
@@ -348,7 +349,18 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
   const id = Number(req.params.id)
   const visitor = visitorOf(req)
   if (!visitor) return res.status(400).json({ error: 'visitor required' })
-  const buyerContact = String(req.body?.contact || '').trim().slice(0, CONTACT_MAX) || null
+  /**
+   * 联系方式:**先归一化再验**,规则和前端 lib/contactValidation 逐字一致。
+   * 只在前端验等于没验 —— 这是公开接口,curl 一下就能把「asdf」塞进来,
+   * 经纪拿到一条打不通的 lead 比没有 lead 更伤(他会觉得这个来源是垃圾)。
+   * 没填仍然是允许的(非 relay 渠道),只有「填了但不合法」才拦。
+   */
+  const rawContact = String(req.body?.contact || '').trim().slice(0, CONTACT_MAX)
+  const buyerContactType: ContactType = isContactType(req.body?.contactType) ? req.body.contactType : 'phone'
+  if (rawContact && contactError(buyerContactType, rawContact)) {
+    return res.status(400).json({ error: 'invalid_contact', contactType: buyerContactType })
+  }
+  const buyerContact = rawContact ? normalizeContact(buyerContactType, rawContact) : null
   const buyerNote = String(req.body?.note || '').trim().slice(0, NOTE_MAX) || null
   // 买家界面语言 —— 给经纪生成联系模板用。默认英文(见 agentOutreachTemplate)
   const buyerLang = String(req.body?.lang || '').trim().slice(0, 10) || null
@@ -370,6 +382,8 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
        UPDATE agent_match_assignments m
           SET revealed_at   = COALESCE(m.revealed_at, now()),
               buyer_contact = COALESCE($3, m.buyer_contact),
+              -- 类型跟着号码一起写:号码没变就别把类型改了(连点两次的话第二次是空的)
+              buyer_contact_type = CASE WHEN $3 IS NULL THEN m.buyer_contact_type ELSE $6 END,
               buyer_note    = COALESCE($4, m.buyer_note),
               buyer_lang    = COALESCE(m.buyer_lang, $5),
               /**
@@ -393,7 +407,7 @@ router.post('/:id(\\d+)/reveal', async (req: Request, res: Response) => {
       RETURNING m.agent_id,
                 (SELECT p.project_name FROM residential_projects p WHERE p.id = m.project_id) AS project_name,
                 (before.revealed_at IS NULL) AS first_reveal`,
-      [id, visitor, buyerContact, buyerNote, buyerLang]
+      [id, visitor, buyerContact, buyerNote, buyerLang, buyerContactType]
     )
     if (!rows.length) return res.status(404).json({ error: 'not found' })
     const { rows: ag } = await pool.query(
@@ -450,7 +464,7 @@ router.get('/mine', requireAuth, async (req: Request, res: Response) => {
   if (!email) return res.status(401).json({ error: 'auth required' })
   try {
     const { rows } = await pool.query(
-      `SELECT m.id, m.created_at, m.revealed_at, m.buyer_contact, m.buyer_note,
+      `SELECT m.id, m.created_at, m.revealed_at, m.buyer_contact, m.buyer_contact_type, m.buyer_note,
               m.agent_ack_at, m.source, m.project_id, m.buyer_lang, m.round_no,
               p.project_name, a.display_name AS agent_name, a.brand AS agent_brand
          FROM agent_match_assignments m
@@ -708,7 +722,7 @@ router.get('/admin', requireOwner, async (_req: Request, res: Response) => {
     )
     const matches = await pool.query(
       `SELECT m.id, m.created_at, m.revealed_at, m.agent_ack_at, m.source,
-              m.buyer_contact, m.buyer_note, m.visitor_id,
+              m.buyer_contact, m.buyer_contact_type, m.buyer_note, m.visitor_id,
               a.email AS agent_email, a.display_name AS agent_name,
               p.project_name
          FROM agent_match_assignments m

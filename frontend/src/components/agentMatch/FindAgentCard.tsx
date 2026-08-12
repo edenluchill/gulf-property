@@ -1,5 +1,5 @@
 /**
- * 「找真人帮忙」—— 买家侧的选人 + 留言表单。弹窗和地图区域弹窗共用。
+ * 「联系房产顾问」—— 买家侧的选人 + 留言表单。弹窗和地图区域弹窗共用。
  *
  * 流程是两态,**不是三态**(owner 2026-08-09 定的形态):
  *   ① 选人 + 留言 —— 摆 3 位正在排班的顾问让买家挑,同屏留联系方式和想问的
@@ -13,11 +13,20 @@
  *
  * 🔴 **候选按轮值顺序取,展示顺序才是随机的。** 真随机会跳过等最久的人,
  *    轮值就白做了 —— 打乱只影响观感,被提名的机会严格按队列走(见 fetchCandidates)。
+ *
+ * 🔴 **三位候选横排,不许改回竖着堆**(owner 2026-08-11:「不喜欢现在上下 3 个,
+ *    应该左右横排 3 个,相对小一点也行」)。竖排把表单挤到首屏外,买家要滚一下
+ *    才看得到「留联系方式」——而那一步才是这个功能的转化点。
+ *
+ * 🔴 **联系方式先选类型再填,而且要过校验**(同一天 owner:「不能随便现在什么垃圾
+ *    都可以」)。规则在 lib/contactValidation.ts,**后端有同一份**。
  */
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, Mail, Check } from 'lucide-react'
+import { UserRound, Loader2, MessageCircle, Phone, BadgeCheck, Mail, Check, AlertCircle } from 'lucide-react'
 import { matchAgent, fetchCandidates, revealContact, type MatchedAgent, type RevealedContact } from '../../lib/agentMatchApi'
+import { contactError, normalizeContact, CONTACT_TYPES, type ContactType } from '../../lib/contactValidation'
 import { trackEvent } from '../../lib/track'
 
 /**
@@ -56,6 +65,10 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
   const [contact, setContact] = useState<RevealedContact | null>(null)
   const [note, setNote] = useState('')
   const [myContact, setMyContact] = useState('')
+  /** 默认 WhatsApp —— 迪拜这边经纪和买家几乎只用它 */
+  const [contactType, setContactType] = useState<ContactType>('whatsapp')
+  /** 只有在他碰过输入框之后才报红,别一打开弹窗就一片红 */
+  const [touched, setTouched] = useState(false)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -72,10 +85,14 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
 
   /** relay 渠道下买家看不到任何地址,只能靠我们转发 —— 没有回址等于死信。 */
   const needContact = chosen?.channel === 'relay'
+  /** 空 = 没填(非 relay 时允许);非空但不合法 = 要拦 */
+  const badContact = myContact.trim() ? contactError(contactType, myContact) : null
 
   const submit = async () => {
     if (!chosen) { setErr(t('agentMatch.pickOne')); return }
-    if (needContact && !myContact.trim()) { setErr(t('agentMatch.contactRequired')); return }
+    if (needContact && !myContact.trim()) { setTouched(true); setErr(t('agentMatch.contactRequired')); return }
+    // 填了就必须填对 —— 打不通的号码比没号码更伤(经纪会觉得这个来源是垃圾)
+    if (badContact) { setTouched(true); setErr(t(`agentMatch.invalid_${badContact}`)); return }
     setErr(''); setBusy(true)
     trackEvent('contact_attempt', { contact_type: 'agent_match_submit' }, { project_id: projectId, immediate: true })
     /**
@@ -85,7 +102,13 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
      */
     const r = await matchAgent({ projectId, source, prefer: chosen.id })
     if (!r.agent || !r.matchId) { setErr(t('agentMatch.tryAgain')); setBusy(false); return }
-    setContact(await revealContact(r.matchId, { contact: myContact, note, lang: i18n.language }))
+    setContact(await revealContact(r.matchId, {
+      // 存归一化后的值(+区号、去掉空格横杠),经纪那边才能直接拨/直接开 wa.me
+      contact: myContact.trim() ? normalizeContact(contactType, myContact) : '',
+      contactType,
+      note,
+      lang: i18n.language,
+    }))
     setBusy(false)
   }
 
@@ -165,31 +188,45 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
       {cands.length > 1 && (
         <>
           <p className="text-xs text-slate-500">{t('agentMatch.pickHint')}</p>
-          <ul className="space-y-2">
+          {/* 🔴 横排三列。别改回 space-y 竖排 —— 见文件头 */}
+          <ul className="grid grid-cols-3 gap-2">
             {cands.map((c) => {
               const on = chosen?.id === c.id
               return (
                 <li key={c.id}>
-                  <button type="button" onClick={() => { setChosen(c); setErr('') }}
-                    className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-start transition ${
+                  <motion.button type="button" onClick={() => { setChosen(c); setErr('') }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 420, damping: 26 }}
+                    className={`flex h-full w-full flex-col items-center gap-1 rounded-xl px-1.5 py-2.5 text-center transition ${
                       on ? 'bg-teal-50 ring-2 ring-teal-500' : 'bg-white ring-1 ring-slate-200 hover:ring-slate-300'
                     }`}>
-                    <AgentAvatar agent={c} size={10} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-slate-900">{c.display_name}</span>
-                      <span className="block truncate text-xs text-slate-500">
-                        {[c.title, c.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
-                      </span>
-                      {/* RERA 牌照号只在**真有**的时候显示 —— 编一个「已认证」徽章出来
-                          是在替一个我们没验证过的人背书 */}
-                      {c.rera_brn && (
-                        <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
-                          <BadgeCheck className="h-3 w-3" />BRN {c.rera_brn}
-                        </span>
-                      )}
+                    <span className="relative">
+                      <AgentAvatar agent={c} size={10} />
+                      {/* 选中的对勾贴在头像右下角 —— 横排卡片里没有一行的空间放它 */}
+                      <AnimatePresence>
+                        {on && (
+                          <motion.span
+                            initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 520, damping: 20 }}
+                            className="absolute -bottom-0.5 -end-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-teal-500 ring-2 ring-white">
+                            <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
                     </span>
-                    {on && <Check className="h-4 w-4 shrink-0 text-teal-600" />}
-                  </button>
+                    <span className="w-full truncate text-xs font-semibold text-slate-900">{c.display_name}</span>
+                    <span className="w-full truncate text-[10px] leading-tight text-slate-500">
+                      {[c.title, c.brokerage].filter(Boolean).join(' · ') || t('agentMatch.roleFallback')}
+                    </span>
+                    {/* RERA 牌照号只在**真有**的时候显示 —— 编一个「已认证」徽章出来
+                        是在替一个我们没验证过的人背书。横排卡片窄,号码放 title 里 */}
+                    {c.rera_brn && (
+                      <span title={`BRN ${c.rera_brn}`}
+                        className="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-1.5 py-px text-[10px] font-medium text-emerald-700">
+                        <BadgeCheck className="h-2.5 w-2.5" />BRN
+                      </span>
+                    )}
+                  </motion.button>
                 </li>
               )
             })}
@@ -197,15 +234,79 @@ export default function FindAgentCard({ projectId, projectName, source, compact 
         </>
       )}
 
-      {/* 两个输入:relay 渠道下联系方式是**必填**(他看不到地址,经纪只能回过去) */}
-      <input value={myContact} onChange={(e) => setMyContact(e.target.value)} maxLength={120}
-        placeholder={needContact ? t('agentMatch.yourContactRequired') : t('agentMatch.yourContact')}
-        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
+      {/* ── 联系方式:先选类型,再填,填了就要合法 ─────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
+          {CONTACT_TYPES.map((ty) => {
+            const on = contactType === ty
+            const Icon = ty === 'email' ? Mail : ty === 'phone' ? Phone : MessageCircle
+            return (
+              <button key={ty} type="button"
+                /* 换类型就清空已填的值 —— 一个 +971 号码在「邮箱」下永远不合法,
+                   留着只会挂一个红感叹号让人以为自己填错了。 */
+                onClick={() => { setContactType(ty); setMyContact(''); setErr(''); setTouched(false) }}
+                className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-xs font-medium transition-colors ${
+                  on ? 'text-teal-700' : 'text-slate-500 hover:text-slate-700'
+                }`}>
+                {/* 滑动的白色药丸 —— layoutId 让它在三个格子之间真的滑过去 */}
+                {on && (
+                  <motion.span layoutId="contact-type-pill"
+                    transition={{ type: 'spring', stiffness: 480, damping: 34 }}
+                    className="absolute inset-0 rounded-full bg-white shadow-sm" />
+                )}
+                <Icon className="relative h-3.5 w-3.5" />
+                <span className="relative">{t(`agentMatch.type_${ty}`)}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="relative mt-2">
+          <input
+            value={myContact}
+            onChange={(e) => { setMyContact(e.target.value); setErr('') }}
+            onBlur={() => setTouched(true)}
+            maxLength={120}
+            type={contactType === 'email' ? 'email' : 'tel'}
+            inputMode={contactType === 'email' ? 'email' : 'tel'}
+            autoComplete={contactType === 'email' ? 'email' : 'tel'}
+            dir="ltr"
+            placeholder={t(`agentMatch.ph_${contactType}`)}
+            aria-invalid={!!(touched && badContact)}
+            className={`w-full rounded-xl border px-3 py-2 pe-9 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none ${
+              touched && badContact ? 'border-rose-300 focus:border-rose-400' : 'border-slate-200 focus:border-teal-400'
+            }`}
+          />
+          {/* 右边那个小状态图标:合法 → 绿勾,不合法 → 红感叹号。没填就什么都不显示 */}
+          <AnimatePresence>
+            {myContact.trim() && (
+              <motion.span
+                initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 24 }}
+                className="pointer-events-none absolute inset-y-0 end-3 flex items-center">
+                {badContact
+                  ? <AlertCircle className="h-4 w-4 text-rose-400" />
+                  : <Check className="h-4 w-4 text-emerald-500" />}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
+          {needContact ? t('agentMatch.contactWhyRequired') : t('agentMatch.contactWhy')}
+        </p>
+      </div>
+
       <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500}
         placeholder={t('agentMatch.yourNote')}
         className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-teal-400 focus:outline-none" />
 
-      {err && <p className="text-xs font-medium text-rose-600">{err}</p>}
+      {err && (
+        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-1.5 text-xs font-medium text-rose-600">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />{err}
+        </motion.p>
+      )}
 
       <button type="button" onClick={submit} disabled={busy}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">

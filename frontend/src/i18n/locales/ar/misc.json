@@ -514,7 +514,17 @@
     "filterDone": "تمت المتابعة",
     "roundLabel": "الجولة {{n}}",
     "roundNone": "أُعيد إلى التناوب",
-    "openAdminDispatch": "افتح لوحة التوزيع"
+    "openAdminDispatch": "افتح لوحة التوزيع",
+    "type_whatsapp": "واتساب",
+    "type_phone": "هاتف",
+    "type_email": "بريد إلكتروني",
+    "ph_whatsapp": "+971 50 123 4567",
+    "ph_phone": "+971 50 123 4567",
+    "ph_email": "you@example.com",
+    "invalid_phone": "أضف رمز الدولة، مثال ‎+971 50 123 4567",
+    "invalid_email": "يرجى إدخال بريد إلكتروني صحيح",
+    "contactWhy": "اختياري. اتركه ليتمكن المستشار من التواصل معك.",
+    "contactWhyRequired": "مطلوب. عنوان هذا المستشار غير معلن، ولا يمكنه سوى الرد عليك."
   },
   "activity": {
     "title": "أشيائي",

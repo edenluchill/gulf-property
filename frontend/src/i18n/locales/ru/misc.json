@@ -515,7 +515,17 @@
     "filterDone": "Отработаны",
     "roundLabel": "Круг {{n}}",
     "roundNone": "Возвращено в ротацию",
-    "openAdminDispatch": "Открыть панель распределения"
+    "openAdminDispatch": "Открыть панель распределения",
+    "type_whatsapp": "WhatsApp",
+    "type_phone": "Телефон",
+    "type_email": "Эл. почта",
+    "ph_whatsapp": "+971 50 123 4567",
+    "ph_phone": "+971 50 123 4567",
+    "ph_email": "you@example.com",
+    "invalid_phone": "Укажите код страны, например +971 50 123 4567",
+    "invalid_email": "Укажите корректный адрес эл. почты",
+    "contactWhy": "Необязательно. Оставьте — и консультант сам с вами свяжется.",
+    "contactWhyRequired": "Обязательно. Адрес этого консультанта не раскрывается — он сможет только ответить вам."
   },
   "activity": {
     "title": "Моё",

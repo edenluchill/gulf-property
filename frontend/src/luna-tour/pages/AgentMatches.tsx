@@ -159,9 +159,32 @@ export default function AgentMatches() {
                 )}
               </div>
               {m.buyer_contact ? (
-                <p className="mt-1.5 text-sm font-medium text-slate-800">
-                  <Phone className="me-1 inline h-3.5 w-3.5 text-slate-400" />{m.buyer_contact}
-                </p>
+                /* 买家自己选了类型(whatsapp / phone / email),所以这里能给一个
+                   **能直接点**的动作,而不是让经纪自己复制粘贴。
+                   ⚠️ buyer_contact_type 上线前的老记录是 null —— 那时按值里有没有
+                      '@' 兜底,别假设非空。 */
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-800">
+                    {m.buyer_contact_type === 'email' || (!m.buyer_contact_type && m.buyer_contact.includes('@'))
+                      ? <Mail className="me-1 inline h-3.5 w-3.5 text-slate-400" />
+                      : m.buyer_contact_type === 'whatsapp'
+                        ? <MessageSquare className="me-1 inline h-3.5 w-3.5 text-emerald-500" />
+                        : <Phone className="me-1 inline h-3.5 w-3.5 text-slate-400" />}
+                    {m.buyer_contact}
+                  </span>
+                  {m.buyer_contact_type === 'whatsapp' && (
+                    <a href={`https://wa.me/${m.buyer_contact.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-emerald-600">
+                      <MessageSquare className="h-3 w-3" />WhatsApp
+                    </a>
+                  )}
+                  {m.buyer_contact_type === 'phone' && (
+                    <a href={`tel:${m.buyer_contact}`}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-slate-800">
+                      <Phone className="h-3 w-3" />{t('agentMatch.call')}
+                    </a>
+                  )}
+                </div>
               ) : (
                 /* 买家没留联系方式(WhatsApp 渠道下是允许的:他拿了号自己去发消息)。
                    **说清楚该怎么办**,别只写一句「未留」让人干瞪眼。 */
