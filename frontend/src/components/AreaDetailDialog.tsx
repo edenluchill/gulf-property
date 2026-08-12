@@ -256,7 +256,7 @@ export default function AreaDetailDialog({
               {/* 用 chip + 弹窗,和项目页/地图入口一致 —— 直接铺一张表单会把
                   这个本来就挤的弹窗撑开,而且买家还没想找人时就摆输入框很吵。 */}
               <div className="mt-4 flex justify-center">
-                <FindAgentChip />
+                <FindAgentChip standalone />
               </div>
             </div>
           </div>

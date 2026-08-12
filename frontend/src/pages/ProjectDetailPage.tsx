@@ -26,7 +26,7 @@ import { generateProjectNotes } from '../lib/generateProjectNotes'
 import { trackEvent } from '../lib/track'
 // 楼盘公开导览的入口（isolated：删掉这行 + 下面那一行组件即可移除）
 import ProjectTourCta from '../luna-tour/components/ProjectTourCta'
-import FindAgentChip from '../components/agentMatch/FindAgentChip'
+import ProjectActionBar from '../components/project/ProjectActionBar'
 
 /** 规范域。canonical / og:url / og:image 一律用它,绝不用 window.location.origin ——
  *  裸域 pinzos.com 已在边缘 301 到这里(见 functions/_middleware.ts)。 */
@@ -131,17 +131,26 @@ export default function ProjectDetailPage() {
     toggleProjectFavorite(project.id)
   }
 
-  /**
-   * 值班经纪小卡片 —— 放进**三套 header 各自的按钮排**(手机/平板/桌面)。
-   * owner 2026-08-09:「小卡片放到 project 那个 bar 上」。
-   * 定义在这里、三处只写 `{agentChip}`:markup 只有一份,漏改的风险最小
-   * (这一页已经因为"三套 JSX 各写一遍"栽过两次)。
-   */
-  const agentChip = <FindAgentChip projectId={project?.id} projectName={project?.project_name} />
-  /** tablet 那一排是 h-10,chip 默认 h-9 —— 只有这一处需要拔高对齐 */
-  const agentChipTablet = <FindAgentChip projectId={project?.id} projectName={project?.project_name} className="h-10" />
-
   const isFav = project ? isProjectFavorite(project.id) : false
+
+  /**
+   * 头部那一排操作(找顾问 / 分享 / 复制笔记 / 收藏)。
+   * 手机/平板/桌面**三套 header 都调这一个**,差别只有 compact ——
+   * 这一页已经因为"三套 JSX 各写一遍"栽过两次(漏改一处 → 只有某个断点是旧样子)。
+   */
+  const actionBar = (compact: boolean, className?: string) => (
+    <ProjectActionBar
+      projectId={project?.id}
+      projectName={project?.project_name}
+      compact={compact}
+      copied={copied}
+      isFav={isFav}
+      onShare={handleShare}
+      onCopyNotes={handleCopyNotes}
+      onToggleFavorite={handleToggleFavorite}
+      className={className}
+    />
+  )
 
   // Mobile info sheet state
   const [showMobileInfo, setShowMobileInfo] = useState(false)
@@ -497,34 +506,7 @@ export default function ProjectDetailPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
-                      {agentChip}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={handleShare}
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={handleCopyNotes}
-                      >
-                        {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        variant={isFav ? "default" : "outline"}
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={handleToggleFavorite}
-                      >
-                        <Heart className={`h-4 w-4 ${isFav ? 'fill-current' : ''}`} />
-                      </Button>
-                    </div>
+                    <div className="flex-shrink-0">{actionBar(true)}</div>
                   </div>
                 </div>
 
@@ -582,42 +564,20 @@ export default function ProjectDetailPage() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    {/* pad 档比另外两档多两颗「经纪自己的工具」(客户报告 / 名片)。
+                        它们跟着操作胶囊一起改成 rounded-full + 同高,不然一排里
+                        又是圆角胶囊又是直角方块。 */}
+                    <div className="flex flex-shrink-0 items-center gap-2">
                       <Button
                         size="sm"
-                        className="h-10 bg-teal-500 px-3 text-white hover:bg-teal-600"
+                        className="h-10 rounded-full bg-gradient-to-b from-teal-500 to-teal-600 px-4 text-white shadow-sm shadow-teal-600/20 transition-all hover:from-teal-500 hover:to-teal-700 hover:shadow-md active:scale-95"
                         onClick={handleGenerateReport}
                         disabled={genningReport}
                       >
                         <Share2 className="me-1.5 h-4 w-4" />{genningReport ? '生成中…' : '客户报告'}
                       </Button>
-                      <Button variant="outline" size="sm" className="h-10 px-3" onClick={() => setShowCardEditor(true)}>名片</Button>
-                      {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
-                      {agentChipTablet}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={handleShare}
-                      >
-                        <Share2 className="h-5 w-5" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={handleCopyNotes}
-                      >
-                        {copied ? <Check className="h-5 w-5 text-green-600" /> : <Copy className="h-5 w-5" />}
-                      </Button>
-                      <Button
-                        variant={isFav ? "default" : "outline"}
-                        size="icon"
-                        className="h-10 w-10"
-                        onClick={handleToggleFavorite}
-                      >
-                        <Heart className={`h-5 w-5 ${isFav ? 'fill-current' : ''}`} />
-                      </Button>
+                      <Button variant="outline" size="sm" className="h-10 rounded-full border-slate-200/80 bg-white/80 px-4 transition-all active:scale-95" onClick={() => setShowCardEditor(true)}>名片</Button>
+                      {actionBar(false, 'h-10 px-1.5')}
                     </div>
                   </div>
                 </div>
@@ -674,43 +634,7 @@ export default function ProjectDetailPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {/* 值班经纪小卡片 —— 和 分享/收藏 并排(owner:「小卡片放到 project 那个 bar 上」) */}
-                        {agentChip}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleShare}
-                        >
-                          <Share2 className="h-4 w-4 me-2" />
-                          {t('project:share', 'Share')}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCopyNotes}
-                        >
-                          {copied ? (
-                            <>
-                              <Check className="h-4 w-4 me-2 text-green-600" />
-                              {t('project:copyNotes.copied')}
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-4 w-4 me-2" />
-                              {t('project:copyNotes.button')}
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant={isFav ? "default" : "outline"}
-                          size="sm"
-                          onClick={handleToggleFavorite}
-                        >
-                          <Heart className={`h-4 w-4 me-2 ${isFav ? 'fill-current' : ''}`} />
-                          {isFav ? t('project:saved', 'Saved') : t('project:save', 'Save')}
-                        </Button>
-                      </div>
+                      <div className="flex items-center">{actionBar(false)}</div>
                     </div>
                   </div>
                 </div>
