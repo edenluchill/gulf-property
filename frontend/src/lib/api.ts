@@ -814,7 +814,15 @@ export async function fetchTxFilters(): Promise<TxFilters> {
 /** 统一搜索建议:一个框同时搜区域 / 楼盘 / 楼栋。 */
 export interface TxSuggestion {
   type: 'area' | 'project' | 'building';
+  /** 完整名 —— **匹配、去重、跳转一律用它**，别用 short */
   name: string;
+  /**
+   * 显示用短名：剥掉超长地名前缀和开发商后缀。
+   * 客户原话：「地名可以隐藏起来，主要显示楼盘名」「经纪人大多都是只搜楼名」
+   * ——「Mohammed Bin Rashid Al Maktoum City District One West…」两条并排时
+   * 真正的楼盘名全在省略号外面，等于没法选。
+   */
+  short?: string;
   count: number;
   area?: string | null;      // project / building 所属区域
   project?: string | null;   // building 所属楼盘

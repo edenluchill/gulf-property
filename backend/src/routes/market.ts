@@ -8,6 +8,7 @@
  */
 import { Router, Request, Response } from 'express'
 import pool from '../db/pool'
+import { projectShortName } from '../lib/projectShortName'
 import { findAreaByName } from '../services/area-matcher'
 import { calculateInvestment5yr, calculatePaybackYears } from '../services/investment-calculator'
 import { DEFAULT_SEGMENT, SEGMENT_MIN_SAMPLE, parseSegment, MarketSegment } from '../lib/marketSegment'
@@ -411,8 +412,8 @@ async function loadProjects(area: string): Promise<{ name: string; count: number
  */
 interface SuggestIndex {
   areas: { name: string; count: number }[]
-  projects: { name: string; area: string | null; count: number; buildings: number }[]
-  buildings: { name: string; project: string | null; area: string | null; count: number }[]
+  projects: { name: string; area: string | null; master: string | null; count: number; buildings: number }[]
+  buildings: { name: string; project: string | null; area: string | null; master: string | null; count: number }[]
 }
 
 async function loadSuggestIndex(): Promise<SuggestIndex> {
@@ -432,6 +433,7 @@ async function loadSuggestIndex(): Promise<SuggestIndex> {
     pool.query(
       `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name,
               mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              mode() WITHIN GROUP (ORDER BY dt.master_project) AS master,
               COUNT(*)::int AS count,
               COUNT(DISTINCT UPPER(dt.building_name))::int AS buildings
          FROM dld_transactions dt
@@ -444,6 +446,7 @@ async function loadSuggestIndex(): Promise<SuggestIndex> {
       `SELECT mode() WITHIN GROUP (ORDER BY dt.building_name) AS name,
               mode() WITHIN GROUP (ORDER BY dt.project_name) AS project,
               mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              mode() WITHIN GROUP (ORDER BY dt.master_project) AS master,
               COUNT(*)::int AS count
          FROM dld_transactions dt
         WHERE dt.trans_group = 'Sales' AND dt.property_usage = 'Residential' AND ${RES_PT}
@@ -476,6 +479,9 @@ router.get('/transactions/suggest', async (req: Request, res: Response) => {
       return res.json({ suggestions: idx.areas.slice(0, 8).map(a => ({ type: 'area', ...a })) })
     }
     type S = { type: 'area' | 'project' | 'building'; name: string; count: number; score: number
+               /** 显示用短名 —— 剥掉超长地名前缀和开发商后缀。**匹配/跳转永远用 name。**
+                *  客户原话:「地名可以隐藏起来,主要显示楼盘名」「经纪人大多都是只搜楼名」 */
+               short?: string
                area?: string | null; project?: string | null; buildings?: number }
     const out: S[] = []
     for (const a of idx.areas) {
@@ -484,14 +490,14 @@ router.get('/transactions/suggest', async (req: Request, res: Response) => {
     }
     for (const p of idx.projects) {
       const s = scoreMatch(p.name, q)
-      if (s > 0) out.push({ type: 'project', name: p.name, count: p.count, score: s, area: p.area, buildings: p.buildings })
+      if (s > 0) out.push({ type: 'project', name: p.name, short: projectShortName(p.name, p.master), count: p.count, score: s, area: p.area, buildings: p.buildings })
     }
     for (const b of idx.buildings) {
       const s = scoreMatch(b.name, q)
       // 楼栋名常与楼盘名几乎重复(project「Creek Waters」/ building「Creek Waters」),
       // 完全同名的楼栋不再单列 —— 选楼盘就已经覆盖它,列出来只是噪音。
       if (s > 0 && b.name.toLowerCase() !== (b.project || '').toLowerCase())
-        out.push({ type: 'building', name: b.name, count: b.count, score: s, project: b.project, area: b.area })
+        out.push({ type: 'building', name: b.name, short: projectShortName(b.name, b.master), count: b.count, score: s, project: b.project, area: b.area })
     }
     // 🔴 分组配额,不是全局排序。
     // 曾经是「先按匹配质量、再按类型」排完取前 12 —— 搜「lagoon」时 12 个名额

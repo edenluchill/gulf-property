@@ -60,6 +60,15 @@ export function pickLang(lng: string | undefined): ChangeLang {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    date: '2026-08-13',
+    kind: 'improve',
+    zh: '搜楼盘更好认了。以前搜「district」出来两条都是「Mohammed Bin Rashid Al Maktoum City…」开头，真正的楼盘名全被挤到省略号外面，看起来一模一样。现在这类超长的片区前缀和「by 某某开发公司」的后缀会自动收起来，直接显示楼盘名；完整名称仍然保留，鼠标停上去就能看到。成交列表的列也重排了：总价和单价挪到前面，楼盘和区域放到最后 —— 看成交时先看的是价钱。',
+    en: 'Project search is easier to read. Searching “district” used to return two rows both starting with “Mohammed Bin Rashid Al Maktoum City…”, pushing the actual project name past the ellipsis so the two looked identical. Those very long district prefixes — and “by <developer>” suffixes — are now folded away so the project name comes first; the full name is kept and shows on hover. The transactions table has also been reordered: price and price per sqft moved to the front, project and area to the end, because price is what you scan for first.',
+    fr: "La recherche de projets est plus lisible. Chercher « district » renvoyait deux lignes commençant toutes deux par « Mohammed Bin Rashid Al Maktoum City… », le vrai nom du projet passant hors des points de suspension : les deux semblaient identiques. Ces très longs préfixes de quartier — ainsi que les suffixes « by <promoteur> » — sont désormais repliés pour que le nom du projet vienne en premier ; le nom complet est conservé et s'affiche au survol. Le tableau des transactions a aussi été réordonné : le prix et le prix au sqft passent devant, le projet et le quartier à la fin, car c'est le prix que l'on regarde en premier.",
+    ru: 'Поиск проектов стало легче читать. По запросу «district» выдавались две строки, обе начинавшиеся с «Mohammed Bin Rashid Al Maktoum City…», а само название проекта уходило за многоточие — строки выглядели одинаково. Такие длинные префиксы районов, а также окончания «by <застройщик>», теперь сворачиваются, и название проекта идёт первым; полное название сохраняется и видно при наведении. Таблица сделок тоже переупорядочена: цена и цена за sqft — в начале, проект и район — в конце, потому что первым делом смотрят на цену.',
+    ar: 'أصبح البحث عن المشاريع أوضح. عند البحث عن «district» كانت تظهر نتيجتان تبدآن كلتاهما بـ«Mohammed Bin Rashid Al Maktoum City…»، فيخرج اسم المشروع الحقيقي خارج علامة الحذف وتبدو النتيجتان متطابقتين. هذه البادئات الطويلة للمناطق، وكذلك لواحق «by <المطوّر>»، تُطوى الآن ليظهر اسم المشروع أولاً؛ والاسم الكامل محفوظ ويظهر عند تمرير المؤشر. كما أُعيد ترتيب جدول الصفقات: السعر وسعر القدم المربع في المقدمة، والمشروع والمنطقة في النهاية، لأن السعر هو أول ما يُنظر إليه.',
+  },
+  {
     date: '2026-08-12',
     kind: 'new',
     zh: '成交页多了「今日速报」——每天开盘后能一眼看到全市昨天成交了多少套、总额多少、中位价、期房占了几成，还有当天最活跃的几个区和最高的那一笔。数字直接来自迪拜土地局（DLD），页面上标了数据滞后几天，不含糊。区名点一下就直接查那个区的成交记录。经纪还能一键把这段话复制下来发给客户。',

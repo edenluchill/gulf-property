@@ -352,7 +352,13 @@ export default function TransactionsPage() {
                         {t(`filter.kind.${s.type}`)}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm text-slate-800">{s.name}</span>
+                        {/* 显示短名 —— 客户反馈:「地名可以隐藏起来,主要显示楼盘名」
+                            「经纪人大多都是只搜楼名」。两条 MBR City 开头的楼盘并排时,
+                            真正的名字全被挤到省略号外面,等于没法选。
+                            title 保留完整名,长按/悬停仍能看全。 */}
+                        <span className="block truncate text-sm text-slate-800" title={s.name}>
+                          {s.short || s.name}
+                        </span>
                         {(s.type === 'building' ? s.project : s.area) && (
                           <span className="block truncate text-xs text-slate-400">
                             {s.type === 'building' ? s.project : s.area}
@@ -553,32 +559,36 @@ export default function TransactionsPage() {
             <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-start text-xs text-slate-500">
+                {/* 列序按 owner 的要求排(2026-08-13):
+                    **价格提到前面**、**楼盘在区域之前**、这两个名字列都挪到最后。
+                    理由是看成交时先看「多少钱」,名字是用来核对的,不是用来扫的;
+                    而且名字列最长,放中间会把右边的数字挤到看不见。 */}
                 <tr>
                   <th className="px-3 py-2">{t('table.date')}</th>
-                  <th className="px-3 py-2">{t('table.area')}</th>
-                  <th className="px-3 py-2">{t('table.building')}</th>
-                  <th className="px-3 py-2">{t('table.rooms')}</th>
-                  <th className="px-3 py-2 text-end">{t('table.size')}</th>
                   <th className="px-3 py-2 text-end">{t('table.price')}</th>
                   <th className="px-3 py-2 text-end">{t('table.pps')}</th>
+                  <th className="px-3 py-2">{t('table.rooms')}</th>
+                  <th className="px-3 py-2 text-end">{t('table.size')}</th>
                   <th className="px-3 py-2">{t('table.type')}</th>
+                  <th className="px-3 py-2">{t('table.building')}</th>
+                  <th className="px-3 py-2">{t('table.area')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-t border-slate-100">
                     <td className="px-3 py-2 text-slate-500">{r.date}</td>
-                    <td className="px-3 py-2">{r.area}</td>
-                    <td className="px-3 py-2 max-w-[200px] truncate" title={r.building}>{r.building}</td>
+                    <td className="px-3 py-2 text-end font-medium text-slate-800">{fmt(r.price)}</td>
+                    <td className="px-3 py-2 text-end">{fmt(r.pricePerSqm != null ? pricePerSqmToPerSqft(r.pricePerSqm) : r.pricePerSqm)}</td>
                     <td className="px-3 py-2">{r.rooms}</td>
                     <td className="px-3 py-2 text-end">{fmt(r.sizeSqm != null ? sqmToSqft(r.sizeSqm) : r.sizeSqm)}</td>
-                    <td className="px-3 py-2 text-end">{fmt(r.price)}</td>
-                    <td className="px-3 py-2 text-end">{fmt(r.pricePerSqm != null ? pricePerSqmToPerSqft(r.pricePerSqm) : r.pricePerSqm)}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs ${r.saleType === 'offplan' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
                         {r.saleType === 'offplan' ? t('saleType.offplan') : t('saleType.readyShort')}
                       </span>
                     </td>
+                    <td className="px-3 py-2 max-w-[220px] truncate" title={r.building}>{r.building}</td>
+                    <td className="px-3 py-2 max-w-[160px] truncate text-slate-500" title={r.area}>{r.area}</td>
                   </tr>
                 ))}
               </tbody>

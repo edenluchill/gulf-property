@@ -94,6 +94,7 @@ async function txSuggest() {
     pool.query(
       `SELECT mode() WITHIN GROUP (ORDER BY dt.project_name) AS name,
               mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              mode() WITHIN GROUP (ORDER BY dt.master_project) AS master,
               COUNT(*)::int AS count,
               COUNT(DISTINCT UPPER(dt.building_name))::int AS buildings
          FROM dld_transactions dt
@@ -104,6 +105,7 @@ async function txSuggest() {
       `SELECT mode() WITHIN GROUP (ORDER BY dt.building_name) AS name,
               mode() WITHIN GROUP (ORDER BY dt.project_name) AS project,
               mode() WITHIN GROUP (ORDER BY dt.area_name) AS area,
+              mode() WITHIN GROUP (ORDER BY dt.master_project) AS master,
               COUNT(*)::int AS count
          FROM dld_transactions dt
         WHERE ${TX_BASE} AND dt.building_name IS NOT NULL AND dt.building_name <> ''
