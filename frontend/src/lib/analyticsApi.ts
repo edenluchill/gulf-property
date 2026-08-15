@@ -84,6 +84,13 @@ export interface SessionRow {
   tool_call_count: number | null
   had_error: boolean
   summary: string | null     // AI 中文摘要(null = 未生成)
+  /**
+   * 这条记录怎么来的。`'beacon'` = 浏览器结束时正常上报;
+   * `'rebuilt'` = 那次上报没发生(手机切走 / 后台节流 / 进程被杀),
+   * 服务端事后从 luna_turns 补的。补录的少了 metrics / 打断次数,
+   * 内容本身是全的。老行没有这一列 → undefined,当 beacon 处理。
+   */
+  source?: 'beacon' | 'rebuilt'
 }
 export interface SessionTranscriptMessage { role: 'user' | 'assistant'; content: string; timestamp: number }
 export interface SessionDetail extends SessionRow {

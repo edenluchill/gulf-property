@@ -62,6 +62,7 @@ import { mapMeter, mapHeartbeat } from './middleware/mapMeter'  // 匿名地图�
 import { startPerfFlusher, stopPerfFlusher } from './services/perfMonitor'  // 60s rollups + threshold alerts
 import { startFreeTrialSweep } from './services/freeTrialSweep'  // 免绑卡试用到期 → canceled
 import { startReferralSweep } from './services/referralSweep'    // 推荐计划 hold→qualified→发奖
+import { startLunaSessionRebuild } from './services/luna-session-rebuild' // 丢失的语音会话从 luna_turns 补回
 import { startTelemetry } from './telemetry/start'  // 通用遥测(WS/容量/漏斗/RUM)— docs/telemetry-spec.md
 import { primeJwks } from './lib/jwks'  // Supabase 签名公钥 → 登录请求本地验签(零远程调用)
 
@@ -253,6 +254,14 @@ const server = app.listen(PORT, async () => {
   startFreeTrialSweep()
   // 推荐计划结算(hold 期满 → qualified → 发奖到 Stripe balance;同款生产门)
   startReferralSweep()
+
+  /**
+   * Luna 会话补录 —— `luna_sessions` 只在浏览器 sendBeacon 上报时才有行，
+   * 手机切走 / 后台节流 / 进程被杀都会让那**唯一一次**上报不发生。
+   * 实测 30 天丢了 6/8 场（owner 2026-08-14 报「看不到记录但合伙人说聊过」）。
+   * 每 10 分钟从逐轮表 `luna_turns` 把缺的补齐；上报的那条永远优先。
+   */
+  startLunaSessionRebuild()
 })
 
 // Extend timeouts for large file uploads (10 minutes)

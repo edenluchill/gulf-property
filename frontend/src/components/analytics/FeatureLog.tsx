@@ -120,7 +120,16 @@ export default function FeatureLog() {
                       {s.summary
                         ? <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">{s.summary}</div>
                         : <div className="mt-0.5 text-xs italic text-slate-300">暂无摘要</div>}
-                      <div className="mt-0.5 text-xs text-slate-400">{s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具{s.had_error ? ' · ⚠️ 有错误' : ''}</div>
+                      <div className="mt-0.5 text-xs text-slate-400">
+                        {s.turn_count || 0} 句 · {s.tool_call_count || 0} 工具{s.had_error ? ' · ⚠️ 有错误' : ''}
+                        {/* 补录 = 浏览器结束时没上报成功,服务端从每轮日志还原的。
+                            标出来是因为它少了 metrics/打断次数 —— 看到「工具 0」时
+                            要知道是没记到,不是真没查。 */}
+                        {s.source === 'rebuilt' && (
+                          <span className="ms-1.5 rounded bg-amber-50 px-1 py-px text-[10px] text-amber-600"
+                                title="浏览器结束时没上报成功,这条是服务端从每轮日志补回来的">补录</span>
+                        )}
+                      </div>
                     </div>
                     <span className="shrink-0 text-xs text-slate-400">{s.duration_ms ? `${Math.round(s.duration_ms / 1000)}s` : '—'}</span>
                   </button>

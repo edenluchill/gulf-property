@@ -631,7 +631,11 @@ export async function getLunaSessions(limit = 50, offset = 0, filters: LunaSessi
     `SELECT ls.id, ls.session_id, ls.created_at, ls.visitor_id,
             COALESCE(ls.user_email, ae.user_email) AS email,
             ${SHORT_ID} AS short_id,
-            ls.duration_ms, ls.turn_count, ls.tool_call_count, ls.had_error, ls.summary
+            ls.duration_ms, ls.turn_count, ls.tool_call_count, ls.had_error, ls.summary,
+            -- 'rebuilt' = 浏览器那次上报没发生,服务端从 luna_turns 补的。
+            -- 必须露出来:2026-08-14 就因为分不清「没这条」和「没上报」,
+            -- 差点把一场真实对话当成「没人用」。
+            ls.source
        FROM luna_sessions ls
        ${EMAIL_JOIN}
       ${whereSql}

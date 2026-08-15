@@ -83,17 +83,24 @@ router.post('/voice-session', optionalAuth, (req: Request, res: Response) => {
 
   void pool
     .query(
+      /**
+       * 冲突有两种来源:同一场重复上报,或 **`luna-session-rebuild` 已经从
+       * `luna_turns` 把它补过了**。两种都让浏览器这份赢 —— 它带着真实
+       * metrics / 错误列表 / 打断次数,比重建的富。`source` 一并改回
+       * 'beacon',否则看板上会一直显示成「补录的」。
+       */
       `INSERT INTO luna_sessions
          (session_id, visitor_id, user_email, user_id, started_at, ended_at,
-          duration_ms, turn_count, tool_call_count, had_error, transcript)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+          duration_ms, turn_count, tool_call_count, had_error, transcript, source)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,'beacon')
        ON CONFLICT (session_id) DO UPDATE SET
          ended_at = EXCLUDED.ended_at,
          duration_ms = EXCLUDED.duration_ms,
          turn_count = EXCLUDED.turn_count,
          tool_call_count = EXCLUDED.tool_call_count,
          had_error = EXCLUDED.had_error,
-         transcript = EXCLUDED.transcript`,
+         transcript = EXCLUDED.transcript,
+         source = 'beacon'`,
       [
         sessionId,
         visitorId,

@@ -20,5 +20,8 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  // 单测不进构建:vitest 自己用 esbuild 转译,而这里的 moduleResolution 是
+  // node10,解析不了 vitest 那种只给 exports 的类型。而且编进 dist 会让镜像
+  // 带上一堆运行时用不到的东西。跑测试用 `npm test`。
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }
