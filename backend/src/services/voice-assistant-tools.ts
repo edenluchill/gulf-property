@@ -392,6 +392,46 @@ export const voiceAssistantTools = [
         }
       },
       {
+        /**
+         * 🔴 **举证工具。** 客户不信「需求强劲」,客户信「上周 Luma Park Views 一套
+         * 82 平的 1 房卖了 125 万」。在这个工具之前 Luna 手上全是聚合标量,
+         * 于是每句判断都只能拿形容词撑着 —— 那正是 owner 说的「我都能编」。
+         */
+        name: 'recent_transactions',
+        description: 'Pull the ACTUAL individual sales that closed in an area recently — each with its date, project name, size, price and price per sqm. This is your evidence. Whenever you make a claim about an area holding value, being in demand, being priced at X, or being a good/bad deal, call this and NAME two or three real deals with their dates and prices. A claim backed by "median price is 1.03M" is weak; "on 13 August a 1-bed at Luma Park Views went for 1.25M, and one at Rise Residences for 880k" is verifiable and is what a real broker says. Prefer segment=ready when the customer is asking about resale value or how the market is actually absorbing supply.',
+        parameters: {
+          type: 'object',
+          properties: {
+            area: { type: 'string', description: 'Dubai area, e.g. "JVC", "Dubai Creek Harbour", "Business Bay"' },
+            bedrooms: { type: 'number', description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            segment: { type: 'string', enum: ['offplan', 'ready', 'all'], description: 'ready = resale of completed units (use for "will prices hold / resale value"); offplan = developer sales' },
+            limit: { type: 'number', description: 'How many deals to return (default 6, max 12)' }
+          },
+          required: ['area']
+        }
+      },
+      {
+        /**
+         * 🔴 **拐点工具。** 「近3年年化 +10.9%」和「已经连跌三个季度」可以同时为真,
+         * 而客户问的永远是后者。只有标量的时候,模型会拿三年前的上涨去安慰一个
+         * 正在下跌的市场 —— 2026-08-13 生产事故就是这么发生的。
+         */
+        name: 'price_trend',
+        description: 'Quarter-by-quarter median price per sqm and transaction volume for an area, plus the drawdown from peak and how many quarters prices have been falling in a row. Call this WHENEVER the customer asks about the future, about risk, about oversupply or handover waves, or whether prices will hold — a single 3-year growth number cannot answer those and will make you say the market is rising while it is actually falling. Report the turning point honestly: if drawdown_from_peak_pct is negative or consecutive_falling_quarters >= 2, say so plainly and give the quarters, before you say anything reassuring.',
+        parameters: {
+          type: 'object',
+          properties: {
+            area: { type: 'string', description: 'Dubai area, e.g. "JVC", "Dubai Marina"' },
+            bedrooms: { type: 'number', description: 'Bedrooms: 0=studio, 1, 2… Omit for any.' },
+            property_type: { type: 'string', enum: ['apartment', 'villa', 'townhouse'], description: 'Default apartment' },
+            segment: { type: 'string', enum: ['offplan', 'ready', 'all'], description: 'ready = completed-unit resale, the truest read on whether supply is pressuring prices' },
+            quarters: { type: 'number', description: 'How many quarters back (default 12, max 20)' }
+          },
+          required: ['area']
+        }
+      },
+      {
         name: 'check_affordability',
         description: 'Work out what the customer can afford from their monthly income OR cash for down-payment, then recommend areas within that budget. Use when the customer gives an income/salary or savings and asks what/where they can buy. Returns max purchase price, required down payment, monthly mortgage, and affordable areas with yield & growth.',
         parameters: {
@@ -979,6 +1019,64 @@ async function executeToolInner(
       return {
         result: d,
         summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'offplan' ? '(期房口径)' : d.segment_requested === 'offplan' && d.segment_used === 'all' ? '(期房样本少,已含现房)' : ''}:中位 ${wan(pr.median_price_aed)}万 AED(${pr.median_price_sqm}/㎡,比全城${vsCity}),近3年年化 ${t.cagr_3y_pct}%、同比 ${t.yoy_pct}%(${t.direction}),毛收益 ${y.gross_yield_pct ?? '—'}%,指示性5年ROI ${p.total_roi_pct}%、回本 ${p.payback_years ?? '—'}年,流动性${d.liquidity.level}(置信度${d.sample.confidence})。净收益/供给/人口数据暂缺。`
+      }
+    }
+
+    /**
+     * 逐笔成交 —— **Luna 唯一能拿来举证的原子事实**。
+     *
+     * summary 里把每一笔摊平成一句人话(「8月13日 Luma Park Views 1房 82㎡ 125万」),
+     * 因为模型抄 summary 远比它自己从 JSON 数组里挑三条、还要算单价可靠得多。
+     */
+    case 'recent_transactions': {
+      const qs = new URLSearchParams()
+      qs.set('area', params.area)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      if (params.segment) qs.set('segment', params.segment)
+      if (params.limit) qs.set('limit', String(params.limit))
+      const d = await apiFetch<any>(`/api/ai/analytics/recent-transactions?${qs.toString()}`)
+      if (d.error === 'unknown_area') return { result: d, summary: `AREA_NOT_FOUND: 没匹配到「${params.area}」这个区。` }
+      const txns = d.transactions || []
+      if (!txns.length) return { result: d, summary: `${d.area || params.area} 近半年没有符合条件的成交记录。` }
+      const md = (iso: string) => { const t = new Date(iso); return `${t.getUTCMonth() + 1}月${t.getUTCDate()}日` }
+      const beds = (b: number | null) => b === 0 ? '开间' : b == null ? '' : `${b}房`
+      const lines = txns.map((t: any) =>
+        `${md(t.date)} ${t.project || '(未登记项目名)'} ${beds(t.bedrooms)}${t.size_sqm}㎡ ${wan(t.price_aed)}万(${Math.round(t.price_sqm)}/㎡${t.offplan ? '·期房' : '·现房'})`
+      ).join(';')
+      return {
+        result: d,
+        summary: `${d.area} 最近 ${txns.length} 笔真实成交(DLD 登记${d.segment_used === 'ready' ? '·现房转售' : d.segment_used === 'offplan' ? '·期房' : ''}):${lines}。**这些是可以直接念给客户听的证据,请点名 2-3 笔。**`
+      }
+    }
+
+    /**
+     * 逐季度趋势 —— **拐点**。
+     *
+     * summary 里先说方向和回撤,再给序列:模型的开场句几乎总是抄 summary 的开头,
+     * 所以「正在跌」必须排在「三年涨了多少」前面,否则它又会用旧涨幅安慰新下跌。
+     */
+    case 'price_trend': {
+      const qs = new URLSearchParams()
+      qs.set('area', params.area)
+      if (params.property_type) qs.set('property_type', params.property_type)
+      if (params.bedrooms !== undefined) qs.set('bedrooms', String(params.bedrooms))
+      if (params.segment) qs.set('segment', params.segment)
+      if (params.quarters) qs.set('quarters', String(params.quarters))
+      const d = await apiFetch<any>(`/api/ai/analytics/price-trend?${qs.toString()}`)
+      if (d.error === 'unknown_area') return { result: d, summary: `AREA_NOT_FOUND: 没匹配到「${params.area}」这个区。` }
+      if (d.error === 'insufficient_history') return { result: d, summary: `${d.area || params.area} 季度成交样本太少,给不出可靠趋势。` }
+      const q = (iso: string) => { const t = new Date(iso); return `${t.getUTCFullYear()}Q${Math.floor(t.getUTCMonth() / 3) + 1}` }
+      const series = (d.quarters || []).slice(-8)
+        .map((x: any) => `${q(x.quarter)} ${Math.round(x.median_sqm)}/㎡(${x.txns}笔)`).join(' → ')
+      const head = d.consecutive_falling_quarters >= 2
+        ? `⚠️ 正在下行:已连续 ${d.consecutive_falling_quarters} 个季度下跌,较 ${q(d.peak.quarter)} 峰值 ${Math.round(d.peak.median_sqm)}/㎡ 回撤 ${Math.abs(d.drawdown_from_peak_pct)}%。`
+        : d.drawdown_from_peak_pct <= -5
+          ? `⚠️ 已离峰:较 ${q(d.peak.quarter)} 峰值回撤 ${Math.abs(d.drawdown_from_peak_pct)}%。`
+          : `方向:${d.direction === 'rising' ? '上行' : '基本走平'}(期间年化 ${d.cagr_pct ?? '—'}%)。`
+      return {
+        result: d,
+        summary: `${d.area} ${d.bedrooms ?? ''}居${d.ptype}${d.segment_used === 'ready' ? '(现房转售口径)' : d.segment_used === 'offplan' ? '(期房口径)' : ''}中位单价走势。${head} 逐季:${series}。**先如实说方向,再谈其他。**`
       }
     }
 
