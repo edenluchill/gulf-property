@@ -139,3 +139,116 @@ signals: 6 (折叠)
 `lt_payment_shares` **没有 `title` 列**（是 `unit_name`）。第一版查询写了 `ps.title`，
 本机 tsc 查不出来 —— SQL 字符串不参与类型检查。**这类查询必须先对着生产库单跑一遍**，
 否则一个列名错误会让整个健康度面板 500。
+
+---
+
+# 追加（同日）：三个遗留问题的处理
+
+## A. `tours@pinzos.com` → 归为内部号
+
+owner 确认「是 AI 自己搞的」。加进 `backend/src/lib/internalAccounts.ts` 的 `OWNER_ACCOUNTS`。
+
+**剔除后面板变了，而且是变准了**：
+
+| | 剔除前 | 剔除后 |
+|---|---|---|
+| 够得着的人 | 4 | **3** |
+| signals | 6 条 | **7 条** |
+
+多出来的那条是 **「Luna Tour 导览：30 天内外部产出为 0」**。
+原来面板认为 Luna Tour 有外部产出 —— 那唯一一条 tour 是 **AI 自己的账号做的**。
+剔掉之后的事实是：**至今没有任何外部经纪做过一个 Luna Tour。**
+这和 `activation-crisis-2026-07-17` 记忆条里那句「至今无任何外部经纪用过 Luna Tour」对上了 ——
+面板之前因为名单少一个人，把这个事实盖住了。
+
+⚠️ 教训重复了一次：**内部号名单漏一个，结论就反向。** 这已经是第二次
+（第一次是把合伙人当外部客户，得出「真实外部用户建过 tour = 1 人」）。
+
+## B. `pedias797@gmail.com` → 改回 approved
+
+owner：「那个干净他又很多账户在乱玩？让他玩吧」。已 `UPDATE agents SET status='approved',
+decided_by='owner:let-him-play'`。现在库里 **69 approved / 0 rejected / 0 pending**。
+
+**顺带确认 owner 的疑问「经纪账户不是我们 grant 的吧」——对，approve 不发任何东西。**
+`routes/agents.ts` 的 `decide()` 只 `UPDATE agents SET status`，一行而已：
+- 不发试用（试用要他自己去 `/agent/plans` 领，7 天 / 200 分，一人一次）
+- 不发积分（额度闸门在 `quota.ts`，与审批无关）
+- 不发权限（楼书上传另有 `requireUploader`）
+
+所以放行的成本是 0。这也是取消排队本身成立的原因。
+
+## C. 开发商验证 → **砍掉**
+
+owner：「开发商批准那个现在 0 价值 感觉没必要 你觉得怎么让他有价值 或者直接砍掉看你」。
+
+### 判断：砍。理由是查出来的，不是嫌它麻烦
+
+查了四件事，**四件都是空的**：
+
+1. **徽章 0 价值**（owner 已指出）—— `developer_verified_at` 全站没有一处渲染成标记。
+
+2. **它守的门是假的。** 上传楼书的判据在 `middleware/requireUploader.ts` 的
+   `canManageProjects()`：`role='developer'` **+ 生效订阅**。而 `role` 在 `/choose-role`
+   自助点一下就有 —— **库里 23 个 `role='developer'`，其中只有 1 个验证过**。
+   验证从来不是上传楼书的必要条件，批准时"顺手落 role"是多余动作。
+
+3. **实测 ROI = 0。** 全库唯一通过验证的开发商 `graceww1110`（ONE Development，
+   2026-07-20 批的），拿了 30 天 + 600 积分，**交付了 0 个楼盘**（只做了 1 份客户报告，
+   还没被客户打开）。楼盘归属分布：
+
+   ```
+   submitted_by_email = NULL            51 个   ← 我们自己灌的
+   shelldubai26@gmail.com（合伙人）       3 个
+   353199031@qq.com（一个试用用户）        1 个
+   ────────────────────────────────────────
+   合计 55 个，已发布 55 个
+   ```
+
+   **供给侧的真实情况是：外部只传过 1 个楼盘，而且不是那个"已验证开发商"传的。**
+
+4. **和已有功能重复。** 「给某人加长试用」后台早就有通用的**「赠 Pro 30 天」**按钮
+   （1200 积分，比这条链路的 600 更慷慨），走 `services/adminGrant.ts`。
+   开发商验证本质上就是"一个专门给开发商的、需要人工批的赠送流程" —— 通用按钮已覆盖。
+
+### 为什么不是"给它加个徽章让它有价值"
+
+想过。「已验证开发商 → 项目页显示『资料由开发商官方提供』」是个合理设计：
+对买家是真实的信任差（官方付款计划 vs 转手信息），对开发商是继续供货的理由。
+
+**但现在做它，就是给 1 个交付了 0 个楼盘的用户写功能。** 徽章要挂在楼盘上，
+而那个已验证开发商一个楼盘都没传 —— 挂无可挂。这正是 `build-instead-of-sell-pattern`
+里那个模式：用写代码代替去解决真问题。
+
+供给为 0 不是流程问题，加一道人工审批不会让人传楼书，去掉也不会。
+**等真的有开发商在传楼书了，信任标记是 30 分钟的活，而且那时候有真实数据可挂。**
+
+### 删了什么 / 留了什么
+
+**删**：
+- 后端三个端点：`POST /billing/developer/verify-request`、
+  `GET /billing/admin/developer-verifications`、`POST .../:id/decide`
+- `/billing/me` 响应里的 `developer` 字段 + 那条 `developer_verifications` 查询
+- 常量 `DEV_TRIAL_CREDITS` / `DEV_TRIAL_DAYS`（credits.ts）
+- 前端 `DeveloperVerifyCard.tsx`（经纪台顶部那张黄条）+ TrialBanner 里的挂载
+- 前端 `analytics/DeveloperVerification.tsx` + admin 的「开发商验证」tab
+- `billingApi.ts` 的三个函数 + `DeveloperVerification` 类型 + `BillingMe.developer`
+- 健康度面板的 `dev_verify` 待办（永远为 0 了）
+
+**留**（故意）：
+- 表 `developer_verifications`（1 行历史）
+- 列 `lt_agents.developer_verified_at`（1 行）
+- 删掉它们只是为了删而删，留着不花钱，也是这段历史的唯一记录。
+
+**三处墓碑注释**写清了为什么删、以及什么条件下该重新做：
+`routes/billing.ts`（主）、`luna-tour/credits.ts`、`db/developer-verification-migration.sql`。
+
+### 副作用检查
+- 已验证的那位（graceww1110）的 `role='developer'` **不会掉** —— role 在 `user_profiles` 上，
+  和验证链路无关，她的上传权照旧。
+- 23 个 `role='developer'` 的人上传权全部不受影响（判据没动）。
+- 自助试用仍然是所有角色统一 7 天 / 200 分，没有人被降级。
+
+## 部署
+- commit `ea31425`，已 push（前端 CF Pages 自动）
+- API 同样走 `docker save | ssh docker load`（GHCR token 还是死的）
+- 验证：`/health` 200；容器内直跑 `getHealthSnapshot()` 正常，tasks 1 条、people 3 人、signals 7 条
