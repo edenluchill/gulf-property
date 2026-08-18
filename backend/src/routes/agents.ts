@@ -1,6 +1,6 @@
 /**
  * 经纪准入审批 API。
- *  - GET  /api/agents/me            (requireAuth) 登录经纪查自己的状态;首次访问自动建 pending。
+ *  - GET  /api/agents/me            (requireAuth) 登录经纪查自己的状态;首次访问自动登记并放行。
  *  - GET  /api/agents               (requireOwner) 所有者列出全部经纪(pending 置顶)。
  *  - POST /api/agents/:email/approve|reject (requireOwner) 一键批准/拒绝。
  *
@@ -16,38 +16,41 @@ import { grantOneTimeTrial, revokeGrant } from '../services/adminGrant'
 
 const router = Router()
 
-// 登录经纪查自己状态;首次自动登记为 pending
+/**
+ * 登录用户查自己状态;首次自动登记 —— **默认 approved,不再排队**(2026-08-17)。
+ *
+ * 🔴 为什么取消 pending:没有人「申请」过。任何登录用户只要点进 /agent/* 就会被这里
+ *    自动插一行 pending —— 包括误点进来的**买家**。于是 owner 的后台长出一个他既没法
+ *    判断、也不需要判断的队列(唯一的处理方式是无脑批,因为拒绝一个误点的买家没有意义),
+ *    而用户那边撞上一堵「审核中」的墙。**双输。**
+ *
+ *    而且这道门早就是假的:开个免费试用,下次进来就 'auto:subscription' 自动放行。
+ *    它拦住的从来只是「还没开试用的人」—— 那正是最该让他进来看看的人。
+ *
+ * ⚠️ 真正的功能闸门在别处、也必须留在别处:积分/套餐 gating(quota.ts)、楼书上传
+ *    (requireUploader 要 role='developer')。这里放行 ≠ 白嫖,只是不拦在门口。
+ *    'rejected' 仍然拦死 —— 那是 owner **主动**封的人,是真决策。
+ */
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
   const email = (req.user?.email || '').toLowerCase().trim()
   if (!email) return res.json({ status: 'none' })
   if (isOwnerEmail(email)) return res.json({ status: 'approved', owner: true })
   try {
     const { rows } = await pool.query(
-      `INSERT INTO agents (email, user_id, name, status)
-       VALUES ($1, $2, $3, 'pending')
+      `INSERT INTO agents (email, user_id, name, status, decided_at, decided_by)
+       VALUES ($1, $2, $3, 'approved', now(), 'auto:open')
        ON CONFLICT (email) DO UPDATE SET user_id = COALESCE(agents.user_id, EXCLUDED.user_id)
        RETURNING status`,
       [email, req.user?.id ?? null, (req.user?.user_metadata?.name as string) ?? null]
     )
-    let status = rows[0]?.status ?? 'pending'
-    // 付费即准入,团队成员同理:本人或所在团队有生效订阅 → 自动 approve。
-    // (原来被邀请的成员会卡在"审核中"门外——订阅在团队上,webhook 只 approve 付款人)
-    if (status !== 'approved') {
-      const sub = await pool.query(
-        `SELECT 1 FROM lt_agents la
-           JOIN lt_subscriptions s
-             ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
-            AND s.status IN ('active','trialing')
-          WHERE lower(la.email) = $1 LIMIT 1`,
+    let status = rows[0]?.status ?? 'approved'
+    // 存量 pending 行(取消排队之前攒下的)一并放行,否则这批人会永远卡在旧状态。
+    if (status === 'pending') {
+      await pool.query(
+        `UPDATE agents SET status = 'approved', decided_at = now(), decided_by = 'auto:open' WHERE email = $1`,
         [email]
       )
-      if (sub.rows.length > 0) {
-        await pool.query(
-          `UPDATE agents SET status = 'approved', decided_at = now(), decided_by = 'auto:subscription' WHERE email = $1`,
-          [email]
-        )
-        status = 'approved'
-      }
+      status = 'approved'
     }
     res.json({ status })
   } catch (err) {

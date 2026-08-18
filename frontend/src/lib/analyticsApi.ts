@@ -651,6 +651,23 @@ export interface HealthSignal {
   /** 下一步做什么，尽量具体到人、到页面。 */
   action: string
 }
+/**
+ * 待办 —— 「今天能点一下就完事」的具体的事。规则在服务端 healthQueries.buildTasks()。
+ * 与 HealthSignal 的分工:Task = 做完就消失的待办；Signal = 长期结论(收在折叠区)。
+ */
+export interface HealthTask {
+  kind: 'payment_failed' | 'dev_verify' | 'trial_ending' | 'new_output'
+  tone: 'urgent' | 'opportunity'
+  name: string
+  email: string
+  title: string
+  detail: string | null
+  action: { label: string; href: string | null; mail: boolean }
+}
+/** 够得着的人 —— 常驻名单（做过产出物的外部经纪），不是待办。 */
+export interface HealthPerson {
+  name: string; email: string; made: string; daysAgo: number; views: number
+}
 export interface HealthMap {
   users: number; events: number; engaged: number; multiday: number; gateHit: number
   daily: { date: string; dau: number; areas: number }[]
@@ -663,7 +680,11 @@ export interface HealthAudience {
 }
 export interface HealthSnapshot {
   days: number
-  /** 判断层 —— 面板存在的理由，排最前 */
+  /** 待办层 —— 落地屏。不受 days 影响：待办是此刻的状态，不是统计窗口。 */
+  tasks: HealthTask[]
+  /** 够得着的人 —— B 端信号源就这几个，带邮箱直接能联系 */
+  people: HealthPerson[]
+  /** 结论层 —— 长期事实，收进折叠区 */
   signals: HealthSignal[]
   audience: HealthAudience
   map: HealthMap

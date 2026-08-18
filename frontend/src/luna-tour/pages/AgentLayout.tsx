@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router-dom'
-import { Loader2, Clock, ShieldX, ArrowRight } from 'lucide-react'
+import { Loader2, ShieldX, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { fetchAgentStatus, type AgentStatus } from '../../lib/agentApi'
 import { setMyRole } from '../../lib/billingApi'
@@ -48,7 +48,7 @@ function GateCard({ icon, title, children }: { icon: React.ReactNode; title: str
 }
 
 export default function AgentLayout() {
-  const { user, loading, signOut } = useAuth()
+  const { user, loading } = useAuth()
   const [status, setStatus] = useState<AgentStatus>('loading')
 
   useEffect(() => {
@@ -78,16 +78,10 @@ export default function AgentLayout() {
   if (loading || (user && status === 'loading')) {
     return <div className="flex justify-center py-24"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
   }
-  if (status === 'pending') {
-    return (
-      <GateCard icon={<Clock className="h-6 w-6 text-amber-500" />} title="申请已提交">
-        <p>你的经纪账号正在审核中。不想等?选择套餐即可立即开通全部经纪功能。</p>
-        <GoPlansButton />
-        {user && <div className="mt-3 text-xs text-slate-400">{user.email}</div>}
-        <button onClick={() => signOut()} className="mt-3 text-xs text-slate-400 hover:underline">退出登录</button>
-      </GateCard>
-    )
-  }
+  // 2026-08-17:'pending' 这条分支已经**不可能出现** —— /me 现在默认建 approved,
+  // 存量 pending 也会在那里就地升级。原来的「申请已提交/审核中」墙拦住的从来只是
+  // 「还没开试用的人」(和误点进来的买家),那正是最该让他进来看看的人。
+  // 剩下的 'rejected'/'none' 才走下面这道门:owner 主动封的人 + 拿不到状态的异常。
   if (status !== 'approved') {
     return (
       <GateCard icon={<ShieldX className="h-6 w-6 text-rose-500" />} title="暂未开通">

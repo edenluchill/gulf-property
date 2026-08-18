@@ -585,16 +585,244 @@ async function buildSignals(
   return out.sort((a, b) => order[a.severity] - order[b.severity])
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 【待办层】—— 2026-08-17 重做。面板真正的落地内容。
+ *
+ * 🔴 owner 的原话：「这些信息太挡视线而且没屌用，我也不会 take action」。他又是对的。
+ *
+ * buildSignals() 产出的是**结论**（「零付费客户」「拉新在往漏桶里倒水」）—— 正确，
+ * 但它们下个月还是同一句话，因为那是**长期事实**不是**待办**。看第三遍就学会跳过了。
+ * （这正是本文件 buildSignals 注释里自己写下的警告：「凑正确的废话会让人学会忽略」。）
+ *
+ * 待办层的准入门槛只有一条：**能不能今天点一下就完事**。
+ *   · 有具体的人（名字 + 邮箱），不是聚合比率
+ *   · 有一个明确动作（发邮件 / 批准 / 去看），不是「值得认真想一次」
+ *   · 做完就消失 —— 一件事永远留在列表上，说明它根本不是待办
+ *
+ * 结论层（signals）没有删，收进折叠区。它对写周报有用，对「今天干什么」没用。
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export interface Task {
+  kind: 'payment_failed' | 'dev_verify' | 'trial_ending' | 'new_output'
+  /** urgent = 钱/别人在等你；opportunity = 唯一的真实信号源，值得主动够上去 */
+  tone: 'urgent' | 'opportunity'
+  name: string
+  email: string
+  /** 发生了什么。一句话，带天数/数量。 */
+  title: string
+  /** 补充上下文（套餐、公司、官网、产出物标题）。可空。 */
+  detail: string | null
+  /** 动作按钮 */
+  action: { label: string; href: string | null; mail: boolean }
+}
+
+/**
+ * 【够得着的人】—— 常驻名单，**不是待办**（做完不会消失，所以刻意和待办分开放）。
+ *
+ * buildSignals 里那条「只有 N 个外部经纪做出过可分享产出物，一人聊 20 分钟胜过再写
+ * 两周代码」是这个面板上最有用的一句话 —— 但它是**一段话**，读完还得自己去别的表
+ * 里翻邮箱，所以从来没人照着做。这里把它变成几行带邮箱和按钮的人。
+ *
+ * 口径和 signals 的 activated 完全一致（外部经纪 + 至少一个产出物），只是多带上
+ * 「做了什么 / 多久没动静了 / 客户打开过几次」，让「要不要现在联系他」当场可判。
+ */
+export interface Person {
+  name: string
+  email: string
+  /** 做过什么。如「2 张报价单 · 1 个客户报告」 */
+  made: string
+  /** 最近一次产出距今天数 */
+  daysAgo: number
+  /** 他的东西被客户打开的总次数。0 = 做了没发出去，那是另一种谈资。 */
+  views: number
+}
+
+async function reachablePeople(): Promise<Person[]> {
+  const { rows } = await pool.query<{
+    email: string; display_name: string | null
+    offers: number; tours: number; reports: number
+    views: number; d: number
+  }>(
+    `SELECT a.email, a.display_name,
+            (SELECT count(*)::int FROM lt_payment_shares ps WHERE lower(ps.created_by_email) = lower(a.email)) AS offers,
+            (SELECT count(*)::int FROM lt_demo_sessions ds  WHERE ds.agent_id = a.id)                          AS tours,
+            (SELECT count(*)::int FROM lt_client_reports cr WHERE cr.agent_id = a.id)                          AS reports,
+            COALESCE((SELECT sum(ps.view_count)::int FROM lt_payment_shares ps WHERE lower(ps.created_by_email) = lower(a.email)), 0)
+          + COALESCE((SELECT sum(cr.view_count)::int FROM lt_client_reports cr WHERE cr.agent_id = a.id), 0)    AS views,
+            EXTRACT(day FROM now() - GREATEST(
+              COALESCE((SELECT max(ps.created_at) FROM lt_payment_shares ps WHERE lower(ps.created_by_email) = lower(a.email)), 'epoch'::timestamptz),
+              COALESCE((SELECT max(ds.created_at) FROM lt_demo_sessions ds  WHERE ds.agent_id = a.id), 'epoch'::timestamptz),
+              COALESCE((SELECT max(cr.created_at) FROM lt_client_reports cr WHERE cr.agent_id = a.id), 'epoch'::timestamptz)
+            ))::int AS d
+       FROM lt_agents a
+      WHERE lower(COALESCE(a.email,'')) <> ALL($1::text[])
+        AND (EXISTS (SELECT 1 FROM lt_payment_shares ps WHERE lower(ps.created_by_email) = lower(a.email))
+          OR EXISTS (SELECT 1 FROM lt_demo_sessions ds  WHERE ds.agent_id = a.id)
+          OR EXISTS (SELECT 1 FROM lt_client_reports cr WHERE cr.agent_id = a.id))
+      ORDER BY d ASC
+      LIMIT 8`,
+    [INTERNAL_AGENTS]
+  )
+  return rows.map((r) => ({
+    name: r.display_name || r.email.split('@')[0],
+    email: r.email,
+    made: [
+      Number(r.offers) > 0 ? `${r.offers} 张报价单` : null,
+      Number(r.tours) > 0 ? `${r.tours} 个导览` : null,
+      Number(r.reports) > 0 ? `${r.reports} 份客户报告` : null,
+    ].filter(Boolean).join(' · '),
+    daysAgo: Number(r.d),
+    views: Number(r.views),
+  }))
+}
+
+async function buildTasks(): Promise<Task[]> {
+  const out: Task[] = []
+  const nm = (r: { display_name?: string | null; email: string }) =>
+    r.display_name || r.email.split('@')[0]
+
+  // ① 钱：有人想付却扣不成。全场最高优先级 —— 这是**已经想给你的钱**。
+  const failed = await pool.query<{
+    email: string; display_name: string | null; status: string; plan_id: string | null; d: number
+  }>(
+    `SELECT a.email, a.display_name, s.status, s.plan_id,
+            GREATEST(0, EXTRACT(day FROM now() - s.updated_at))::int AS d
+       FROM lt_subscriptions s JOIN lt_agents a ON a.id = s.agent_id
+      WHERE s.status IN ('past_due','unpaid','incomplete')
+        AND lower(COALESCE(a.email,'')) <> ALL($1::text[])
+      ORDER BY s.updated_at ASC`,
+    [INTERNAL_AGENTS]
+  )
+  for (const r of failed.rows) {
+    out.push({
+      kind: 'payment_failed', tone: 'urgent',
+      name: nm(r), email: r.email,
+      title: r.d > 0 ? `扣款失败 ${r.d} 天` : '扣款失败',
+      detail: r.plan_id ? `${r.plan_id} · ${r.status}` : r.status,
+      // 只给主题不给正文：催换卡的措辞必须自己斟酌，模板化的「你的卡失败了」是得罪人的
+      action: { label: '发邮件', href: `mailto:${r.email}?subject=${encodeURIComponent('Pinzos — 关于您的订阅续费')}`, mail: true },
+    })
+  }
+
+  // ② 别人在等你：开发商验证。**这是面板上唯一「不点就卡住对方」的东西。**
+  const dv = await pool.query<{
+    id: string; email: string; company: string; website: string | null; display_name: string | null; d: number
+  }>(
+    `SELECT v.id::text, v.email, v.company, v.website, a.display_name,
+            EXTRACT(day FROM now() - v.created_at)::int AS d
+       FROM developer_verifications v
+       LEFT JOIN lt_agents a ON a.id = v.agent_id
+      WHERE v.status = 'pending'
+      ORDER BY v.created_at ASC`
+  )
+  for (const r of dv.rows) {
+    out.push({
+      kind: 'dev_verify', tone: 'urgent',
+      name: r.company || nm(r), email: r.email,
+      title: r.d > 0 ? `申请开发商验证，等了 ${r.d} 天` : '申请开发商验证',
+      detail: r.website || null,
+      action: { label: '批准 30 天 / 600 分', href: '/admin/analytics?tab=devverify', mail: false },
+    })
+  }
+
+  // ③ 试用快到期，而且**这人真的用过东西** —— 没用过的不提醒：给他发消息
+  //    只会提醒他取消。用过的才是有话可聊的。
+  const ending = await pool.query<{
+    email: string; display_name: string | null; d: number; used: number; plan_id: string | null
+  }>(
+    `SELECT a.email, a.display_name, s.plan_id,
+            GREATEST(0, EXTRACT(day FROM s.current_period_end - now()))::int AS d,
+            COALESCE((SELECT sum(l.credits)::int FROM lt_credit_ledger l
+                       WHERE l.agent_id = a.id AND l.credits > 0
+                         AND l.created_at >= s.created_at), 0) AS used
+       FROM lt_subscriptions s JOIN lt_agents a ON a.id = s.agent_id
+      WHERE s.status = 'trialing'
+        AND s.current_period_end BETWEEN now() AND now() + interval '3 days'
+        AND lower(COALESCE(a.email,'')) <> ALL($1::text[])
+      ORDER BY s.current_period_end ASC`,
+    [INTERNAL_AGENTS]
+  )
+  for (const r of ending.rows.filter((x) => Number(x.used) > 0)) {
+    out.push({
+      kind: 'trial_ending', tone: 'urgent',
+      name: nm(r), email: r.email,
+      title: r.d <= 0 ? '试用今天到期，他用过东西' : `试用还剩 ${r.d} 天，他用过东西`,
+      detail: `已消耗 ${r.used} 积分`,
+      action: { label: '发邮件', href: `mailto:${r.email}?subject=${encodeURIComponent('Pinzos — 您的试用即将到期')}`, mail: true },
+    })
+  }
+
+  // ④ 机会：外部经纪**刚**做出了可分享产出物。
+  //    B 端至今个位数产出（见 signals），所以每一个都值得当天去够上去问一句。
+  //    窗口固定 7 天而不是跟随 days —— 「30 天前有人做过一个」不是今天的待办。
+  const outputs = await pool.query<{
+    email: string; display_name: string | null; label: string; title: string | null
+    href: string | null; d: number; views: number
+  }>(
+    `WITH x AS (
+       -- lt_payment_shares 没有 title 列(2026-08-17 实测),用 unit_name 当标题
+       SELECT a.email, a.display_name, '报价单' AS label, ps.unit_name AS title,
+              '/pp/' || ps.share_code AS href, ps.created_at, COALESCE(ps.view_count,0) AS views
+         FROM lt_payment_shares ps JOIN lt_agents a ON lower(a.email) = lower(ps.created_by_email)
+        WHERE ps.created_at > now() - interval '7 days'
+       UNION ALL
+       SELECT a.email, a.display_name, 'Luna 导览', ds.title,
+              '/v/' || ds.share_code, ds.created_at, 0
+         FROM lt_demo_sessions ds JOIN lt_agents a ON a.id = ds.agent_id
+        WHERE ds.created_at > now() - interval '7 days'
+       UNION ALL
+       SELECT a.email, a.display_name, '客户报告', cr.client_name,
+              '/r/' || cr.share_code, cr.created_at, COALESCE(cr.view_count,0)
+         FROM lt_client_reports cr JOIN lt_agents a ON a.id = cr.agent_id
+        WHERE cr.created_at > now() - interval '7 days'
+     )
+     SELECT email, display_name, label, title, href, views,
+            EXTRACT(day FROM now() - created_at)::int AS d
+       FROM x
+      WHERE lower(COALESCE(email,'')) <> ALL($1::text[])
+      ORDER BY created_at DESC
+      LIMIT 8`,
+    [INTERNAL_AGENTS]
+  )
+  for (const r of outputs.rows) {
+    const when = r.d <= 0 ? '今天' : r.d === 1 ? '昨天' : `${r.d} 天前`
+    out.push({
+      kind: 'new_output', tone: 'opportunity',
+      name: nm(r), email: r.email,
+      title: `${when}做了一个${r.label}`,
+      // 「客户打开过」是比「做出来了」强一个量级的信号，必须说出来
+      detail: [r.title, Number(r.views) > 0 ? `客户打开过 ${r.views} 次` : null]
+        .filter(Boolean).join(' · ') || null,
+      action: { label: '看他做了什么', href: r.href, mail: false },
+    })
+  }
+
+  // urgent 在前；同组内保持各自的时间序
+  return [...out.filter((t) => t.tone === 'urgent'), ...out.filter((t) => t.tone === 'opportunity')]
+}
+
 /** 面板主查询。一次返回全部，前端不用串多个请求。 */
 export async function getHealthSnapshot({ days }: HealthRange) {
   const agents = await agentHealth(days)
   const [features, funnel, map, audience] = await Promise.all([
     featureHealth(days), funnelRates(agents), mapHealth(days), audienceHealth(days),
   ])
-  const signals = await buildSignals(agents, features, map, audience, days)
+  const [signals, tasks, people] = await Promise.all([
+    buildSignals(agents, features, map, audience, days),
+    buildTasks(),
+    reachablePeople(),
+  ])
   return {
     days,
-    /** 判断层排最前 —— 它是这个面板存在的理由，不是附属品 */
+    /**
+     * 待办层 —— 今天能点一下就完事的具体的事。**面板的落地屏就是它。**
+     * ⚠️ 不受 days 影响：待办是「此刻的状态」，不是一个统计窗口。
+     */
+    tasks,
+    /** 够得着的人 —— 常驻名单，不是待办。B 端信号源就这几个，带邮箱直接能联系。 */
+    people,
+    /** 结论层 —— 长期事实，前端收进折叠区。见 buildTasks 的注释说明为什么。 */
     signals,
     agents,
     /** C 端受众。**任何「用户数」都必须说清是 C 端还是 B 端**,见 audienceHealth 注释。 */

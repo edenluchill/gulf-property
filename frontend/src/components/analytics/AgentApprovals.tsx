@@ -2,7 +2,11 @@
  * 「订阅」tab —— B 端:谁订阅了我们的 SaaS。
  *
  * 重构自旧「经纪审批」:主角是订阅客户列表(谁付费/什么套餐/真付费vs赠送/到期/
- * 积分用量),审批(付费即自动准入,见 agents.ts)弱化为顶部一个待审批小区。
+ * 积分用量)。
+ *
+ * ⚠️ 2026-08-17:准入排队已取消 —— 那些 pending 行**不是任何人申请出来的**,是任何
+ * 登录用户(包括误点进来的买家)访问 /agent/* 时被 agents.ts 自动插的。现在默认
+ * 'approved',所以「待审批」组正常永远为空。见 agents.ts 的 GET /me 注释。
  * 数据走 fetchSubscribers(lt_agents ⨝ lt_subscriptions ⨝ plans ⨝ 本月用量 ⨝ 审批状态)。
  * 保留:楼书上传权限、套餐变更审计。
  */
@@ -393,7 +397,6 @@ const FILTERS: { id: SubFilter; label: string }[] = [
   { id: 'trialing', label: '试用中' },
   { id: 'granted', label: '已赠送过' },
   { id: 'ungranted', label: '还能赠' },
-  { id: 'pending', label: '待审批' },
 ]
 
 /**
@@ -607,6 +610,8 @@ export default function AgentApprovals() {
       {/* 按「要做什么」排序:先是等着我处理的,再是客户,最后才是各种没转化的池子 */}
       <Group tone="alert" title="扣款失败" rows={g.failed} render={renderRow} defaultOpen
         hint="现有付费客户的卡出了问题 —— 该催换卡,不是赠送" />
+      {/* 2026-08-17 起 /me 默认建 approved(agents.ts),这一组正常情况下**永远是空的**,
+          Group 自己会返回 null。留着只是为了兜住万一出现的存量/异常 pending 行。 */}
       <Group tone="alert" title="待审批" rows={g.pending} render={renderRow} defaultOpen
         hint="一键批准" />
       <Group tone="good" title="订阅客户" rows={g.live} render={renderRow} defaultOpen

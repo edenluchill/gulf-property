@@ -4,13 +4,19 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * 🔴 owner 的原话：「是数据 但是该怎么做决策？感觉光看这个看不出」。**他是对的。**
  *
- * 第一版是一屏数字，看完不产生任何决策。所以现在的结构是倒过来的：
+ * 第一版是一屏数字，看完不产生任何决策。第二版把「判断层」（6 张结论卡）顶到最上面，
+ * owner 的回复是「这些信息太挡视线而且没屌用，我也不会 take action」—— **他还是对的**：
+ * 结论正确不等于可执行，而且那些结论下个月还是同一句话。
  *
- *   1. 【判断层】最上面，占最大视觉权重 —— 每条带「触发它的数字」+「具体到人的下一步」
- *   2. 下面才是支撑这些判断的原始数据
+ * 2026-08-17 起的结构：
  *
- * 判断规则写在**服务端**（healthQueries.ts 的 buildSignals），不在这里 ——
- * 那样才能被测试、被版本化、在 code review 里争论。前端只负责把它画出来。
+ *   1. 【待办】最上面 —— 只放「今天点一下就完事」的事：有名字、有邮箱、有一个按钮，
+ *      做完就消失。空了就显示「今天没有待办」，那是好消息不是缺陷。
+ *   2. 【战略结论】折叠 —— 长期事实，写周报有用，决定「今天干什么」没用。
+ *   3. 下面才是支撑它们的原始数据。
+ *
+ * 两层规则都写在**服务端**（healthQueries.ts 的 buildTasks / buildSignals），不在这里
+ * —— 那样才能被测试、被版本化、在 code review 里争论。前端只负责把它画出来。
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * 图形选择（遵循 dataviz 规范）：
@@ -27,8 +33,8 @@
  *    一周内变成墙纸。**判断层才是报警的地方**，它有具体依据和具体动作。
  */
 import { useEffect, useState } from 'react'
-import { AlertCircle, AlertOctagon, AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Info } from 'lucide-react'
-import { fetchHealth, HealthSnapshot, HealthFeature, HealthFunnel, HealthSignal, HealthMap } from '../../lib/analyticsApi'
+import { AlertCircle, AlertOctagon, AlertTriangle, ArrowDown, ArrowRight, ArrowUp, BadgeCheck, ChevronRight, CreditCard, ExternalLink, Hourglass, Info, Mail, Sparkles } from 'lucide-react'
+import { fetchHealth, HealthSnapshot, HealthFeature, HealthFunnel, HealthSignal, HealthMap, HealthTask, HealthPerson } from '../../lib/analyticsApi'
 import StatCard from './StatCard'
 
 /** 分母低于这个数就不显示百分比 —— 再算下去只是给自己制造精确的幻觉。 */
@@ -44,6 +50,100 @@ const SEVERITY = {
   warning:  { hex: '#fab219', Icon: AlertCircle,   label: '注意',     bg: 'bg-amber-50',  ring: 'ring-amber-200' },
   info:     { hex: '#0ca30c', Icon: Info,          label: '机会',     bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
 } as const
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 【待办】—— 2026-08-17 重做落地屏。
+ *
+ * 🔴 owner:「这些信息太挡视线而且没屌用，我也不会 take action」。
+ *
+ * 原来顶部是 6 张结论卡（「零付费客户」「拉新在往漏桶里倒水」）。每条都对，
+ * 但它们**下个月还是同一句话** —— 那是长期事实，不是待办。第三次看到就学会跳过了，
+ * 于是整块变成墙纸，还把真正要看的数字挤到了首屏之外。
+ *
+ * 现在顶部只放能今天点一下就完事的事：有名字、有邮箱、有一个按钮，做完就消失。
+ * 结论层没删，收进下面的折叠区 —— 写周报有用，决定「今天干什么」没用。
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const TASK_UI: Record<HealthTask['kind'], { Icon: typeof Mail; hex: string; tag: string }> = {
+  payment_failed: { Icon: CreditCard, hex: '#d03b3b', tag: '钱' },
+  dev_verify:     { Icon: BadgeCheck, hex: '#7c5cd6', tag: '等你批' },
+  trial_ending:   { Icon: Hourglass,  hex: '#ec835a', tag: '要到期' },
+  new_output:     { Icon: Sparkles,   hex: '#0ca30c', tag: '机会' },
+}
+
+function TaskRow({ t }: { t: HealthTask }) {
+  const cfg = TASK_UI[t.kind]
+  const { Icon } = cfg
+  const urgent = t.tone === 'urgent'
+  const btn = urgent
+    ? 'bg-slate-900 text-white hover:bg-slate-700'
+    : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:px-4">
+      <Icon className="h-4 w-4 shrink-0" style={{ color: cfg.hex }} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-sm font-semibold text-slate-900">{t.name}</span>
+          {/* 状态绝不靠颜色单独表达 —— icon + 文字标签 */}
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset"
+            style={{ color: cfg.hex, borderColor: cfg.hex }}>{cfg.tag}</span>
+          <span className="text-sm text-slate-600">{t.title}</span>
+        </div>
+        <div className="mt-0.5 truncate text-xs text-slate-400">
+          {t.email}{t.detail ? ` · ${t.detail}` : ''}
+        </div>
+      </div>
+      {t.action.href && (
+        <a
+          href={t.action.href}
+          target={t.action.mail ? undefined : '_blank'}
+          rel="noreferrer"
+          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${btn}`}
+        >
+          {t.action.mail ? <Mail className="h-3 w-3" /> : <ExternalLink className="h-3 w-3" />}
+          {t.action.label}
+        </a>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 「够得着的人」一行 —— **不是待办**（做完不会消失），所以和待办分开成独立一块。
+ *
+ * 面板上最有用的那句话原本长这样：「只有 4 个外部经纪做出过可分享产出物 …
+ * 一人聊 20 分钟胜过再写两周代码」。正确，但读完还得自己去别的表翻邮箱，
+ * 所以从没被执行过。这里把它变成几行带邮箱和按钮的人。
+ */
+function PersonRow({ p }: { p: HealthPerson }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5 sm:px-4">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
+        {(p.name || p.email).charAt(0).toUpperCase()}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-sm font-medium text-slate-800">{p.name}</span>
+          <span className="text-xs text-slate-500">{p.made}</span>
+          {/* 「做了没人看」和「客户看过」是两种完全不同的谈资，必须分开显示 */}
+          <span className="text-xs text-slate-400">
+            {p.views > 0 ? `客户打开过 ${p.views} 次` : '客户没打开过'}
+          </span>
+        </div>
+        <div className="truncate text-xs text-slate-400">
+          {p.email} · 最近产出 {p.daysAgo} 天前
+        </div>
+      </div>
+      <a
+        href={`mailto:${p.email}`}
+        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+      >
+        <Mail className="h-3 w-3" />联系
+      </a>
+    </div>
+  )
+}
 
 function SignalCard({ s }: { s: HealthSignal }) {
   const cfg = SEVERITY[s.severity]
@@ -248,24 +348,64 @@ export default function Health({ days = 30 }: { days?: number }) {
 
   return (
     <div className="space-y-6">
-      {/* ── 判断层：面板存在的理由，占最大视觉权重 ── */}
+      {/* ── 待办：落地屏。只放「今天点一下就完事」的事 ── */}
       <section>
         <h3 className="mb-2 text-sm font-semibold text-slate-700">
-          现在最该处理的
+          待办
+          {data.tasks.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-slate-900 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+              {data.tasks.length}
+            </span>
+          )}
           <span className="ml-2 text-xs font-normal text-slate-400">
-            按严重度排序 · 每条都带触发它的数字
+            有名字、有一个动作、做完就消失
           </span>
         </h3>
-        {data.signals.length === 0 ? (
-          <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900 ring-1 ring-emerald-200">
-            没有触发任何规则。规则见 <code>healthQueries.ts</code> 的 <code>buildSignals</code>。
+        {data.tasks.length === 0 ? (
+          <div className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-400 ring-1 ring-slate-900/[0.06]">
+            今天没有待办。<span className="text-slate-300">扣款失败 / 待验证的开发商 / 快到期的活跃试用 / 新产出物 —— 有了会出现在这里。</span>
           </div>
         ) : (
-          <div className="grid gap-2 lg:grid-cols-2">
-            {data.signals.map((s, i) => <SignalCard key={i} s={s} />)}
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+            {data.tasks.map((t, i) => <TaskRow key={i} t={t} />)}
           </div>
         )}
       </section>
+
+      {/* ── 够得着的人：常驻名单，不是待办 ──
+          B 端至今个位数产出，信号源就这几个人。放邮箱和按钮，别让「去访谈」停在一句建议上。 */}
+      {data.people.length > 0 && (
+        <section>
+          <h3 className="mb-2 text-sm font-semibold text-slate-700">
+            够得着的人
+            <span className="ml-2 text-xs font-normal text-slate-400">
+              做出过产出物的外部经纪 · 共 {data.people.length} 人 · 一人聊 20 分钟胜过再写两周代码
+            </span>
+          </h3>
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+            {data.people.map((p) => <PersonRow key={p.email} p={p} />)}
+          </div>
+        </section>
+      )}
+
+      {/* ── 结论层：长期事实，默认收起 ──
+          这些判断是对的，但它们**下个月还是同一句话**。放在首屏会挡住真正要看的数字，
+          而且看第三遍就学会跳过整块了。折起来，写周报时再展开。 */}
+      {data.signals.length > 0 && (
+        <details className="group rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/[0.06]">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">
+            <ChevronRight className="h-4 w-4 text-slate-400 transition group-open:rotate-90" />
+            <span className="font-medium text-slate-700">战略结论</span>
+            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">
+              {data.signals.length}
+            </span>
+            <span className="text-xs text-slate-400">长期不变，不是今天的待办</span>
+          </summary>
+          <div className="grid gap-2 border-t border-slate-100 p-3 lg:grid-cols-2">
+            {data.signals.map((s, i) => <SignalCard key={i} s={s} />)}
+          </div>
+        </details>
+      )}
 
       {/* ── C 端受众 ──
           🔴 v2 漏了这一整块,导致面板把「2 个经纪做出过产出物」显示成
