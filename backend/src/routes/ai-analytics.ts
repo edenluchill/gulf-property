@@ -454,7 +454,14 @@ router.get('/affordability', async (req: Request, res: Response) => {
 router.get('/project-value', async (req: Request, res: Response) => {
   try {
     const id = String(req.query.project_id || '')
-    if (!id) return res.status(400).json({ error: 'project_id required' })
+    // 🔴 `if (!id)` 拦不住字面量 "undefined" —— 它是个非空字符串,会一路走到
+    //    `WHERE id = $1`,Postgres uuid 转型报错 → catch 成 500。
+    //    生产事故 #716(2026-08-11,3 次 500)就是这么来的:调用方(Luna 的
+    //    project_value_check 工具)在没拿到 id 时把 undefined 拼进了 URL。
+    //    2026-07-11/08-09 给 residential-projects 的 /:id 路由加过同样的守卫两次,
+    //    **这个端点是 query 参数,两次都漏了**。见 routes/project-insights.ts。
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!id || !UUID_RE.test(id)) return res.status(400).json({ error: 'valid project_id required' })
     const pr = await pool.query(
       `SELECT project_name, area, min_bedrooms, status, COALESCE(starting_price, min_price) AS price
        FROM residential_projects WHERE id = $1`, [id]

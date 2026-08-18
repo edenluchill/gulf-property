@@ -1097,6 +1097,11 @@ async function executeToolInner(
     }
 
     case 'project_value_check': {
+      // 没有 id 就别发请求 —— 拼进 URL 的是字面量 "undefined",服务端 500(事故 #716)。
+      // 对 Luna 来说这不是错误,是「该先查到项目再问它值不值」。
+      if (!params.project_id) {
+        return { result: { error: 'no_project_id' }, summary: '还不知道你说的是哪个项目,先帮你找一下。' }
+      }
       const data = await apiFetch<any>(`/api/ai/analytics/project-value?project_id=${encodeURIComponent(params.project_id)}`)
       if (data.error || data.market === null || data.area_median_aed == null) {
         return { result: data, summary: `${data.project_name || '该项目'} 暂无可比片区成交,给不出对标。` }
