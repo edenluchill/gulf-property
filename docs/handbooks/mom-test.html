@@ -1,0 +1,405 @@
+<title>妈妈测试</title>
+<style>
+:root{
+  --paper:#F7F7F4; --ink:#1A1A18; --ink-2:#4A4A44; --muted:#77776E;
+  --rule:#E0E0DA; --card:#FFFFFF; --card-2:#F1F1EC;
+  --bad:#B33A2B; --bad-soft:#F6E7E4; --good:#2E6049; --good-soft:#E6EFE9;
+  --shadow:0 1px 2px rgba(26,26,24,.05), 0 8px 24px -16px rgba(26,26,24,.25);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#16160F; --ink:#EDEDE4; --ink-2:#C2C2B6; --muted:#8C8C80;
+    --rule:#2E2E26; --card:#1E1E17; --card-2:#242420;
+    --bad:#E58272; --bad-soft:#3A211C; --good:#7FBFA0; --good-soft:#17281F;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#16160F; --ink:#EDEDE4; --ink-2:#C2C2B6; --muted:#8C8C80;
+  --rule:#2E2E26; --card:#1E1E17; --card-2:#242420;
+  --bad:#E58272; --bad-soft:#3A211C; --good:#7FBFA0; --good-soft:#17281F;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:16.5px; line-height:1.72; -webkit-font-smoothing:antialiased;
+}
+.serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Songti SC",serif}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace}
+.wrap{max-width:1080px; margin:0 auto; padding:0 24px 96px}
+.col{max-width:64ch}
+
+/* ── 报头 ─────────────────────────────── */
+header.mast{border-bottom:2px solid var(--ink); padding:56px 0 20px; margin-bottom:44px}
+.kicker{font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:11.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--bad); margin:0 0 14px}
+h1{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif;
+  font-size:clamp(38px,6vw,60px); line-height:1.04; margin:0 0 14px; font-weight:600;
+  letter-spacing:-.015em; text-wrap:balance}
+.sub{font-size:17px; color:var(--ink-2); margin:0; max-width:56ch}
+.meta{display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px; font-size:12.5px; color:var(--muted)}
+.meta b{color:var(--ink-2); font-weight:600}
+
+/* ── 分节 ─────────────────────────────── */
+section{margin:0 0 60px; scroll-margin-top:20px}
+.sec-head{display:flex; gap:16px; align-items:baseline; border-top:1px solid var(--rule);
+  padding-top:14px; margin-bottom:22px}
+.sec-num{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--bad);
+  letter-spacing:.1em; flex:0 0 auto; padding-top:5px}
+h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif;
+  font-size:clamp(24px,3.4vw,31px); line-height:1.2; margin:0; font-weight:600;
+  letter-spacing:-.01em; text-wrap:balance}
+.sec-head p{margin:6px 0 0; font-size:14px; color:var(--muted)}
+h3{font-size:16.5px; margin:32px 0 10px; font-weight:700; letter-spacing:.005em}
+p{margin:0 0 15px}
+.col p, .col li{color:var(--ink-2)}
+strong{color:var(--ink); font-weight:650}
+ul,ol{margin:0 0 15px; padding-left:1.15em}
+li{margin:0 0 7px}
+
+/* ── 核心组件：红笔批改 ──────────────── */
+.fix{background:var(--card); border:1px solid var(--rule); border-radius:2px;
+  padding:16px 18px; margin:0 0 12px; box-shadow:var(--shadow)}
+.fix .q-bad{display:flex; gap:11px; align-items:flex-start; margin-bottom:11px}
+.fix .q-good{display:flex; gap:11px; align-items:flex-start;
+  padding-top:11px; border-top:1px dashed var(--rule)}
+.tick{font-family:ui-monospace,Consolas,monospace; font-size:11px; font-weight:700;
+  flex:0 0 auto; padding:2px 6px; border-radius:2px; letter-spacing:.06em; margin-top:2px}
+.tick.b{background:var(--bad-soft); color:var(--bad)}
+.tick.g{background:var(--good-soft); color:var(--good)}
+.q-bad .t{text-decoration:line-through; text-decoration-color:var(--bad);
+  text-decoration-thickness:1.5px; color:var(--muted)}
+.q-good .t{color:var(--ink); font-weight:600}
+.why{font-size:13.5px; color:var(--muted); margin:9px 0 0; padding-left:0}
+
+/* ── 旁注 ─────────────────────────────── */
+.note{border-left:3px solid var(--bad); background:var(--card-2);
+  padding:14px 18px; margin:0 0 18px; border-radius:0 3px 3px 0}
+.note p:last-child{margin-bottom:0}
+.note .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--bad); display:block; margin-bottom:6px}
+
+/* ── 表 ───────────────────────────────── */
+.scroll{overflow-x:auto; margin:0 0 18px; -webkit-overflow-scrolling:touch}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:520px}
+th,td{text-align:left; padding:10px 14px 10px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600}
+td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+
+/* ── 速查卡 ───────────────────────────── */
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:0 0 20px}
+.card{background:var(--card); border:1px solid var(--rule); border-radius:3px; padding:16px 17px;
+  box-shadow:var(--shadow)}
+.card h4{margin:0 0 8px; font-size:14.5px; font-weight:700; color:var(--ink)}
+.card p{margin:0; font-size:13.5px; color:var(--ink-2); line-height:1.6}
+.card .n{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; color:var(--bad);
+  letter-spacing:.12em; display:block; margin-bottom:9px}
+
+/* ── 台词块 ───────────────────────────── */
+.script{background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--good);
+  padding:15px 18px; margin:0 0 14px; border-radius:0 3px 3px 0; font-size:15px}
+.script .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--good); display:block; margin-bottom:8px}
+.script p{margin:0 0 9px; color:var(--ink)}
+.script p:last-child{margin-bottom:0}
+
+footer{border-top:2px solid var(--ink); padding-top:18px; margin-top:70px;
+  font-size:13px; color:var(--muted)}
+a{color:var(--bad)}
+:focus-visible{outline:2px solid var(--bad); outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:640px){
+  body{font-size:16px}
+  .sec-head{flex-direction:column; gap:4px}
+  .sec-num{padding-top:0}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">工作手册 · 其一 / 共三</p>
+  <h1>妈妈测试</h1>
+  <p class="sub serif">怎么跟客户聊天，让他们没法对你撒谎 —— 哪怕他们真心想安慰你。<br>Rob Fitzpatrick,《The Mom Test》</p>
+  <div class="meta">
+    <span><b>用途</b> 每次约人之前打开</span>
+    <span><b>核心</b> 别验证你的想法，去验证他们的生活</span>
+    <span><b>失败信号</b> 「聊得特别好！」</span>
+  </div>
+</header>
+
+<!-- 心法 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">心法</span>
+    <div>
+      <h2>为什么所有人都会对你撒谎</h2>
+      <p>不是因为他们坏，是因为你问的问题逼他们撒谎。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>书名的来历：作者去问他妈「我做个 iPad 上的菜谱 App 你觉得咋样？」他妈说「好主意啊！」——<strong>他妈根本不用 iPad</strong>。但凡是个妈都会这么说。</p>
+    <p>问题不在他妈，在这个问题本身：<strong>只要你把「你的想法」摆到桌面上，对方就自动进入「评价你的想法」模式，而人在这个模式下会礼貌、会想象、会撒谎</strong>——而且他自己不知道自己在撒谎。</p>
+    <p>所以「妈妈测试」是一套<strong>问题的质检标准</strong>，不是一套问题清单：</p>
+    <blockquote style="margin:20px 0; padding:0 0 0 20px; border-left:3px solid var(--ink); font-size:18px; line-height:1.6" class="serif">
+      好问题 = 就算问你妈，你妈也没办法给你一个假答案的问题。
+    </blockquote>
+    <p>做到这一点只需要三条铁律。</p>
+
+    <h3>三条铁律</h3>
+    <ol>
+      <li><strong>聊他的生活，别聊你的想法。</strong>你的产品在整场对话里最好一次都别出现。</li>
+      <li><strong>问过去发生过的具体的事，别问对未来的看法。</strong>「上次是什么时候」永远优于「你会不会」。</li>
+      <li><strong>少说多听。</strong>你说话的时候学不到任何东西。</li>
+    </ol>
+
+    <div class="note">
+      <span class="lbl">最容易犯的错</span>
+      <p>你以为你在「做客户访谈」，其实你在<strong>找人给你的想法投赞成票</strong>。判断方法很简单：如果对方说「这不行」会让你难受，那你就是去找票的，不是去学东西的。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 技术：批改 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 01</span>
+    <div>
+      <h2>红笔批改：把烂问题改成好问题</h2>
+      <p>左边是你嘴边会脱口而出的，下面是应该换成的。</p>
+    </div>
+  </div>
+
+  <div class="col">
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">你觉得这是个好主意吗？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">你现在是怎么处理这件事的？带我走一遍你上次的流程。</span></div>
+    <p class="why">意见一文不值。只有事实有价值，而事实只存在于「已经发生过的事」里。</p>
+  </div>
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">如果我们做一个能做 X 的产品，你会买吗？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">你为了解决这个问题，现在每个月花多少钱？花在什么上？</span></div>
+    <p class="why">未来的承诺是免费的，人人都愿意给。已经花出去的钱是真的。</p>
+  </div>
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">你会为这个功能付多少钱？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">这件事没做好的时候，你损失了什么？上次损失了多少？</span></div>
+    <p class="why">别问价格，问代价。他愿意付的钱是他损失的一个函数，而他只知道后者。</p>
+  </div>
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">你有遇到过 XX 问题吗？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">你上一周工作里最烦的三件事是什么？</span></div>
+    <p class="why">你一提问题，他就会为了配合你而承认有这个问题。让他自己说出来才算数。</p>
+  </div>
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">这个问题对你来说重要吗？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">你为了解决它，已经试过什么了？（然后：那个东西哪儿不好用？）</span></div>
+    <p class="why"><strong>「试过什么」是整本书里性价比最高的一个问题。</strong>已经动手找过替代方案的人，才是真有这个问题的人。</p>
+  </div>
+
+  <div class="fix">
+    <div class="q-bad"><span class="tick b">烂</span><span class="t">（对方夸了你之后）谢谢！那你觉得还可以加点什么？</span></div>
+    <div class="q-good"><span class="tick g">改</span><span class="t">谢谢。不过我更想知道具体的 —— 你上次真的碰到这个场景是什么时候？</span></div>
+    <p class="why">赞美是对话的噪音，不是信号。收到赞美要<strong>立刻把话题拽回具体的事实</strong>。</p>
+  </div>
+
+  <h3>三类必须当场识别的垃圾数据</h3>
+  <div class="cards">
+    <div class="card">
+      <span class="n">垃圾 A</span>
+      <h4>赞美</h4>
+      <p>「这想法真不错」「我肯定会用」。让你感觉良好、信息量为零。<br><strong>处理：转移话题到具体事实。</strong></p>
+    </div>
+    <div class="card">
+      <span class="n">垃圾 B</span>
+      <h4>废话</h4>
+      <p>泛泛而谈（「我一般都…」）、假设（「我可能会…」）、未来承诺（「我下次一定…」）。<br><strong>处理：追问「上一次具体是什么时候」。</strong></p>
+    </div>
+    <div class="card">
+      <span class="n">垃圾 C</span>
+      <h4>点子</h4>
+      <p>客户张嘴给你提需求。<strong>别记下来就去做。</strong><br><strong>处理：往下挖 —— 你为什么要它？没它你现在怎么办？</strong></p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- 技术：信号 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 02</span>
+    <div>
+      <h2>怎么判断他是真的在乎</h2>
+      <p>嘴上说在乎不算。这四样东西才算。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>信号</th><th>长什么样</th><th>为什么可信</th></tr></thead>
+      <tbody>
+        <tr><td>情绪</td><td>说到这件事他突然语速变快、开始抱怨、爆粗口</td><td>装不出来。冷静的「是啊挺麻烦的」= 不痛。</td></tr>
+        <tr><td>已花的钱</td><td>他已经在为这事付钱（哪怕付给一个烂方案）</td><td>预算科目已经存在，你不用再去创造一个。</td></tr>
+        <tr><td>已花的时间</td><td>他自己搭了个 Excel / 雇了个人 / 手工做</td><td><strong>最强信号。</strong>没人会为不痛的事手工干活。</td></tr>
+        <tr><td>已有的替代品</td><td>他能报出他试过的产品名字，并能说出哪儿不好</td><td>证明这是个「已经在找解药」的问题。</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="note">
+      <span class="lbl">反过来用</span>
+      <p>如果这四样一个都没有 —— 他没情绪、没花钱、没花时间、没试过别的 —— 那么<strong>无论他嘴上多热情，这都是个「不痛」的问题</strong>。记下来，换人。别在这条线上再花第二次会面。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 技术：承诺 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 03</span>
+    <div>
+      <h2>承诺与推进：会面必须以「他付出点什么」结束</h2>
+      <p>这是全书最实操、也最多人跳过的一章。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>一场会面「聊得很好」但对方没有付出任何东西，叫<strong>僵尸线索</strong>：它看起来还活着，实际上永远不会转化，而且会持续消耗你的希望。</p>
+    <p>客户能付出的东西只有三种货币：</p>
+
+    <div class="cards">
+      <div class="card"><span class="n">货币 01</span><h4>时间</h4><p>下次开一个有明确议题的会 / 花 30 分钟一起过一遍他的真实数据 / 试用并给反馈。</p></div>
+      <div class="card"><span class="n">货币 02</span><h4>名誉</h4><p>把你介绍给他老板 / 他同行 / 他的客户。<strong>他愿意拿自己的面子担保你。</strong></p></div>
+      <div class="card"><span class="n">货币 03</span><h4>金钱</h4><p>预付、意向金、直接下单。哪怕只是很小的金额。</p></div>
+    </div>
+
+    <h3>承诺阶梯：每次会面往上推一格</h3>
+    <ol>
+      <li>愿意再聊一次（时间，最弱）</li>
+      <li>愿意把你介绍给另一个人（名誉）</li>
+      <li>愿意投入他自己的真实数据/资料来试（时间 ++）</li>
+      <li>愿意让你进他的工作流跑一次真实任务</li>
+      <li>愿意先付钱（金钱，最强）</li>
+    </ol>
+
+    <div class="note">
+      <span class="lbl">判断一场会面成不成功的唯一标准</span>
+      <p>不是「他说了什么」，是<strong>「他答应了什么」</strong>。<br>没有承诺 = 这场会面失败了，无论气氛多好。</p>
+    </div>
+
+    <h3>怎么把「僵尸」逼出原形</h3>
+    <div class="script">
+      <span class="lbl">收尾台词</span>
+      <p>「听起来这确实是个真问题。下一步我想这么做：<strong>我拿你们上个月的真实数据做一版给你看</strong>，你花 20 分钟跟我过一遍，行吗？」</p>
+      <p style="color:var(--muted); font-size:13.5px">—— 他说行 = 真的。他说「你先发我看看」= 僵尸，他不想投入任何东西。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 技术：找对人 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 04</span>
+    <div>
+      <h2>不是每个人都算数</h2>
+      <p>「所有人都是我的用户」= 你没有用户。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>一个太宽的客户群会给你<strong>互相矛盾的反馈</strong>，让你什么都做不成。切分的方法是不断问「这群人里，哪一小撮最痛？」直到得到一个满足两个条件的群体：</p>
+    <ul>
+      <li><strong>可找到</strong> —— 你能说出「明天上午我去哪儿能碰到 10 个这样的人」。</li>
+      <li><strong>一致</strong> —— 这群人的痛法、说话方式、买东西的方式基本一样。</li>
+    </ul>
+    <p>切分的维度不是「行业 / 公司规模」这种人口统计，而是<strong>行为</strong>：</p>
+    <div class="script">
+      <span class="lbl">切分公式</span>
+      <p><strong>【什么样的人】</strong>，在<strong>【什么场景下】</strong>，为了<strong>【达成什么】</strong>，正在<strong>【用什么烂办法凑合】</strong>。</p>
+    </div>
+    <p class="why" style="font-size:14.5px">写不出最后那半句 = 你还没找到人，只找到了一个人群标签。</p>
+  </div>
+</section>
+
+<!-- 会前会后 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 05</span>
+    <div>
+      <h2>会前 · 会中 · 会后</h2>
+      <p>直接照着做。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>会前（5 分钟，不可跳过）</h3>
+    <ul>
+      <li>写下<strong>三个最大的未知</strong>。不是三个问题，是三个「如果答案是反的，我的计划就得改」的东西。</li>
+      <li>写下你<strong>最怕听到的答案</strong>。那通常就是真相。</li>
+      <li>提醒自己：<strong>今天不许提我的产品。</strong></li>
+    </ul>
+
+    <h3>会中</h3>
+    <ul>
+      <li>开场别说「我在做一个 XX，想听听你的意见」。说<strong>「我在研究 XX 这件事现在大家都怎么干，想跟你请教一下你们怎么做的」</strong>。</li>
+      <li>越随意越好。正式的「用户访谈」会让人进入表演模式。<strong>咖啡、走廊、微信语音都比会议室好。</strong></li>
+      <li>听到情绪就停下来往下挖：「刚才你说到这儿好像挺烦的，能展开讲讲吗？」</li>
+      <li>话说到一半的沉默不要填。他会自己接下去，而接下去的那句往往是真话。</li>
+    </ul>
+
+    <h3>会后（当天写完，不许过夜）</h3>
+    <ul>
+      <li>记<strong>原话</strong>，别记你的总结。总结会把信息洗掉。</li>
+      <li>记<strong>他答应了什么</strong>（三种货币里的哪一种）。</li>
+      <li>记<strong>下一个该找谁</strong>（每次会面都要问：「这件事还有谁比你更头疼？能帮我引荐一下吗？」）。</li>
+      <li>如果没有任何一条新事实推翻或加强了你的三个未知 —— 承认这场是白聊的，改问法。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 速查 -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">速查</span>
+    <div>
+      <h2>一页纸，出门前看这个</h2>
+      <p>七个问题，按顺序问，基本能撑完一整场。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="script">
+      <span class="lbl">通用七问</span>
+      <p><strong>1.</strong> 你现在是怎么做这件事的？带我走一遍上一次的完整流程。</p>
+      <p><strong>2.</strong> 这个流程里最烦的是哪一步？</p>
+      <p><strong>3.</strong> 上一次它出问题是什么时候？后果是什么？</p>
+      <p><strong>4.</strong> 你为了解决它试过什么？那些东西哪儿不好用？</p>
+      <p><strong>5.</strong> 现在这件事上你（或公司）每个月花多少钱、多少时间？</p>
+      <p><strong>6.</strong> 如果这个问题彻底消失，你会拿这些时间去做什么？</p>
+      <p><strong>7.</strong> 这件事还有谁比你更头疼？能帮我引荐一下吗？</p>
+    </div>
+
+    <div class="note">
+      <span class="lbl">自检</span>
+      <p>聊完问自己三句话：<br>
+      ① 我今天有没有说到我的产品？（说了 = 这场数据打折）<br>
+      ② 我记下的是<strong>事实</strong>还是<strong>意见</strong>？<br>
+      ③ 他<strong>付出了什么</strong>？（没有 = 僵尸，别再投入）</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>《The Mom Test》· Rob Fitzpatrick · 工作手册其一 / 共三 —— 配套：<strong>需求侧销售 101</strong>（怎么看懂他为什么买）、<strong>$100M Offers</strong>（怎么让他没法拒绝）。</p>
+</footer>
+
+</div>

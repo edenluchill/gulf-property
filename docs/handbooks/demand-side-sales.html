@@ -1,0 +1,394 @@
+<title>需求侧销售</title>
+<style>
+:root{
+  --paper:#EFF2F2; --ink:#12201F; --ink-2:#3C4E4C; --muted:#6E8280;
+  --rule:#D5DEDD; --card:#FFFFFF; --card-2:#E6ECEB;
+  --go:#0F6B60; --go-soft:#DDEDEA;      /* 推动改变的力 */
+  --stop:#B5562A; --stop-soft:#F6E6DD;  /* 阻碍改变的力 */
+  --shadow:0 1px 2px rgba(18,32,31,.06), 0 10px 28px -18px rgba(18,32,31,.35);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C1514; --ink:#E4EDEC; --ink-2:#B0C2C0; --muted:#77908D;
+    --rule:#22322F; --card:#131F1E; --card-2:#182726;
+    --go:#4FC1AF; --go-soft:#0F2A26; --stop:#E4906A; --stop-soft:#2C1A12;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1514; --ink:#E4EDEC; --ink-2:#B0C2C0; --muted:#77908D;
+  --rule:#22322F; --card:#131F1E; --card-2:#182726;
+  --go:#4FC1AF; --go-soft:#0F2A26; --stop:#E4906A; --stop-soft:#2C1A12;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px -18px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:16.5px; line-height:1.72; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px; margin:0 auto; padding:0 24px 96px}
+.col{max-width:64ch}
+h1,h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Songti SC",serif;
+  font-weight:600; letter-spacing:-.012em; text-wrap:balance; margin:0}
+
+header.mast{border-bottom:2px solid var(--ink); padding:56px 0 20px; margin-bottom:44px}
+.kicker{font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:11.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--go); margin:0 0 14px}
+h1{font-size:clamp(38px,6vw,60px); line-height:1.04; margin-bottom:14px}
+.sub{font-size:17px; color:var(--ink-2); margin:0; max-width:56ch;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif}
+.meta{display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px; font-size:12.5px; color:var(--muted)}
+.meta b{color:var(--ink-2); font-weight:600}
+
+section{margin:0 0 60px}
+.sec-head{display:flex; gap:16px; align-items:baseline; border-top:1px solid var(--rule);
+  padding-top:14px; margin-bottom:22px}
+.sec-num{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--go);
+  letter-spacing:.1em; flex:0 0 auto; padding-top:5px}
+h2{font-size:clamp(24px,3.4vw,31px); line-height:1.2}
+.sec-head p{margin:6px 0 0; font-size:14px; color:var(--muted)}
+h3{font-size:16.5px; margin:32px 0 10px; font-weight:700}
+p{margin:0 0 15px}
+.col p,.col li{color:var(--ink-2)}
+strong{color:var(--ink); font-weight:650}
+ul,ol{margin:0 0 15px; padding-left:1.15em}
+li{margin:0 0 7px}
+blockquote{margin:20px 0; padding:0 0 0 20px; border-left:3px solid var(--ink); font-size:18px;
+  line-height:1.6; font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif}
+
+/* ── 四力天平 ─────────────────────────── */
+.forces{display:grid; grid-template-columns:1fr auto 1fr; gap:0; margin:6px 0 20px;
+  border:1px solid var(--rule); border-radius:4px; overflow:hidden; background:var(--card);
+  box-shadow:var(--shadow)}
+.side{padding:18px 20px}
+.side.for{background:var(--go-soft)}
+.side.against{background:var(--stop-soft)}
+.side .hd{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; margin:0 0 12px; font-weight:700}
+.side.for .hd{color:var(--go)}
+.side.against .hd{color:var(--stop)}
+.force{margin:0 0 14px}
+.force:last-child{margin-bottom:0}
+.force .nm{font-weight:700; font-size:15px; color:var(--ink); display:block; margin-bottom:2px}
+.force .ds{font-size:13.5px; color:var(--ink-2); line-height:1.55; display:block}
+.fulcrum{width:1px; background:var(--rule)}
+.vs{display:flex; align-items:center; justify-content:center; background:var(--card);
+  padding:0 12px; font-family:ui-monospace,Consolas,monospace; font-size:12px;
+  color:var(--muted); border-left:1px solid var(--rule); border-right:1px solid var(--rule)}
+.eq{margin:0 0 22px; padding:14px 18px; background:var(--card); border:1px solid var(--rule);
+  border-radius:4px; text-align:center; font-size:16px; box-shadow:var(--shadow)}
+.eq .g{color:var(--go); font-weight:700}
+.eq .s{color:var(--stop); font-weight:700}
+
+/* ── 时间线 ───────────────────────────── */
+.tl{margin:6px 0 22px; border-left:2px solid var(--rule); padding-left:0}
+.stage{position:relative; padding:0 0 22px 26px}
+.stage::before{content:""; position:absolute; left:-7px; top:6px; width:12px; height:12px;
+  border-radius:50%; background:var(--paper); border:2px solid var(--go)}
+.stage.evt::before{border-radius:2px; background:var(--stop); border-color:var(--stop); transform:rotate(45deg)}
+.stage:last-child{padding-bottom:0}
+.stage .st{font-weight:700; color:var(--ink); font-size:15.5px; display:block}
+.stage .sd{font-size:14px; color:var(--ink-2); line-height:1.6; display:block; margin-top:2px}
+.stage .ask{font-size:13.5px; color:var(--go); margin-top:6px; display:block; font-weight:600}
+.stage.evt .ask{color:var(--stop)}
+
+.note{border-left:3px solid var(--go); background:var(--card-2); padding:14px 18px;
+  margin:0 0 18px; border-radius:0 3px 3px 0}
+.note.warn{border-left-color:var(--stop)}
+.note p:last-child{margin-bottom:0}
+.note .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--go); display:block; margin-bottom:6px}
+.note.warn .lbl{color:var(--stop)}
+
+.scroll{overflow-x:auto; margin:0 0 18px}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:520px}
+th,td{text-align:left; padding:10px 14px 10px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600}
+td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin:0 0 20px}
+.card{background:var(--card); border:1px solid var(--rule); border-radius:4px; padding:16px 17px;
+  box-shadow:var(--shadow)}
+.card h4{margin:0 0 8px; font-size:14.5px; font-weight:700; color:var(--ink)}
+.card p{margin:0; font-size:13.5px; color:var(--ink-2); line-height:1.6}
+.card .n{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; color:var(--go);
+  letter-spacing:.12em; display:block; margin-bottom:9px}
+
+.script{background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--go);
+  padding:15px 18px; margin:0 0 14px; border-radius:0 3px 3px 0; font-size:15px}
+.script .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--go); display:block; margin-bottom:8px}
+.script p{margin:0 0 9px; color:var(--ink)}
+.script p:last-child{margin-bottom:0}
+
+footer{border-top:2px solid var(--ink); padding-top:18px; margin-top:70px; font-size:13px; color:var(--muted)}
+a{color:var(--go)}
+:focus-visible{outline:2px solid var(--go); outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:700px){
+  .forces{grid-template-columns:1fr}
+  .vs{border:none; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); padding:8px}
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  .sec-head{flex-direction:column; gap:4px}
+  .sec-num{padding-top:0}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">工作手册 · 其二 / 共三</p>
+  <h1>需求侧销售</h1>
+  <p class="sub">没有人「购买产品」。人们是在<strong>雇佣</strong>一个东西，来让自己的处境往前挪一步。<br>Bob Moesta,《Demand-Side Sales 101》</p>
+  <div class="meta">
+    <span><b>用途</b> 搞懂「他为什么买 / 为什么不买」</span>
+    <span><b>核心</b> 卖进展，不卖功能</span>
+    <span><b>关键工具</b> 四种力 · 购买时间线</span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">心法</span>
+    <div>
+      <h2>供给侧 vs 需求侧</h2>
+      <p>同一件事，两种看法，只有一种能卖出东西。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="scroll">
+    <table>
+      <thead><tr><th></th><th>供给侧思维（大多数人）</th><th>需求侧思维（这本书）</th></tr></thead>
+      <tbody>
+        <tr><td>看的是</td><td>我的产品有什么功能</td><td>他卡在哪儿、想往哪儿挪</td></tr>
+        <tr><td>分人靠</td><td>行业、公司规模、职位</td><td>处境：他此刻正在经历什么</td></tr>
+        <tr><td>竞品是</td><td>同类产品</td><td><strong>他现在凑合用的任何东西，包括「什么都不做」</strong></td></tr>
+        <tr><td>问的问题</td><td>你需要什么功能</td><td>带我回到你第一次想到这事的那天</td></tr>
+        <tr><td>销售动作</td><td>展示、说服、推</td><td>帮他把决定做完</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <blockquote>人们不是买产品，他们是把产品「雇」进自己的生活，去干一件他们干不成的活。</blockquote>
+
+    <p>三个直接推翻常识的推论：</p>
+    <ul>
+      <li><strong>没有「新客户」这回事。</strong>每个买你东西的人，都是从别的东西切换过来的。他雇你之前，必然<strong>解雇</strong>了什么 —— Excel、一个同事、一个竞品、或者「一直拖着不办」。<strong>搞不清他解雇了什么，你就不知道自己在跟谁竞争。</strong></li>
+      <li><strong>客户不知道自己要什么，但极其清楚自己在挣扎什么。</strong>所以别问需求，去问挣扎。</li>
+      <li><strong>销售不是把东西推出去，是帮人把「买」这件事做完。</strong>你的角色是向导，不是推销员 —— 你走过这条路一百次，他是第一次走。</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 01</span>
+    <div>
+      <h2>四种力：改变到底为什么发生</h2>
+      <p>全书最有用的一张图。任何「他很感兴趣但就是不买」都能用它解释。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="eq">
+      <span class="g">推力 + 拉力</span>　&gt;　<span class="s">焦虑 + 惯性</span>　⟶　他会换<br>
+      <span style="font-size:13.5px; color:var(--muted)">反之，他就留在原地 —— 哪怕他嘴上说你的东西很棒。</span>
+    </div>
+
+    <div class="forces">
+      <div class="side for">
+        <p class="hd">推动改变</p>
+        <div class="force"><span class="nm">推力（Push）</span><span class="ds">现状的痛。他被现在的处境推着走 —— 出事了、被骂了、赔钱了、忍不了了。<br><strong>没有推力就没有生意。</strong></span></div>
+        <div class="force"><span class="nm">拉力（Pull）</span><span class="ds">新方案的吸引。他能想象出用了之后自己的日子长什么样。<br>注意：拉力必须<strong>具体到画面</strong>，「更高效」不是拉力。</span></div>
+      </div>
+      <div class="vs">对抗</div>
+      <div class="side against">
+        <p class="hd">阻碍改变</p>
+        <div class="force"><span class="nm">焦虑（Anxiety）</span><span class="ds">对新东西的不安。会不会学不会？会不会白花钱？会不会被同事笑？<br>分两种：<strong>选择前的焦虑</strong>（要不要买）和<strong>用起来的焦虑</strong>（买完不敢用）。</span></div>
+        <div class="force"><span class="nm">惯性（Habit）</span><span class="ds">对现状的依赖。再烂的办法，用熟了也有价值。「反正我们一直这么干的」。</span></div>
+      </div>
+    </div>
+
+    <div class="note warn">
+      <span class="lbl">大多数人只干了一半</span>
+      <p>所有人都在拼命加<strong>拉力</strong>（加功能、做演示、讲卖点），几乎没人去减<strong>焦虑和惯性</strong>。<br>但天平的另一头不动，你往这头加多少都没用。<strong>「他很喜欢但没买」= 焦虑或惯性赢了，跟你的功能一点关系都没有。</strong></p>
+    </div>
+
+    <h3>四种力分别怎么动</h3>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>力</th><th>你的动作</th><th>具体手段</th></tr></thead>
+      <tbody>
+        <tr><td>推力</td><td>把它说出来、量化</td><td>让他自己算出现状的代价（时间/钱/丢的单）。<strong>不要你替他算。</strong></td></tr>
+        <tr><td>拉力</td><td>给一个具体画面</td><td>拿他自己的数据做一版给他看，而不是讲功能。</td></tr>
+        <tr><td>焦虑</td><td>逐条拆掉</td><td>保证、试用、我替你做第一次、明确「如果不行怎么退」。</td></tr>
+        <tr><td>惯性</td><td>降低切换成本</td><td>能不能跟他现在的干法并行？第一次能不能不用他动手？</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 02</span>
+    <div>
+      <h2>购买时间线：把「他怎么买的」还原成一条线</h2>
+      <p>访谈的时候你要重建的就是这条线。菱形是<strong>事件</strong> —— 那是最值钱的部分。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="tl">
+      <div class="stage">
+        <span class="st">1 · 第一次冒出念头</span>
+        <span class="sd">很久以前，某个瞬间他想「这事儿有点不对劲」。然后就搁下了。可能是几个月甚至几年前。</span>
+        <span class="ask">问：你第一次觉得这事儿得改改，是什么时候？当时发生了什么？</span>
+      </div>
+      <div class="stage">
+        <span class="st">2 · 被动寻找</span>
+        <span class="sd">不主动找，但会留意。刷到相关的会多看两眼。这个阶段可能很长。</span>
+        <span class="ask">问：那段时间你有留意过什么吗？跟谁聊过？</span>
+      </div>
+      <div class="stage evt">
+        <span class="st">◆ 事件一 —— 「受不了了」</span>
+        <span class="sd"><strong>某件具体的事把他从被动推成主动。</strong>丢了一单、被客户当场问住、老板发火、同行拿下了他想要的活。</span>
+        <span class="ask">问：是什么让你从「想想」变成「真去找」？那天发生了什么？</span>
+      </div>
+      <div class="stage">
+        <span class="st">3 · 主动寻找</span>
+        <span class="sd">开始搜、开始问人、开始试。这时候他在<strong>建立自己的判断标准</strong>，而这套标准往往是错的、临时的。</span>
+        <span class="ask">问：你都看了哪些？怎么筛掉的？</span>
+      </div>
+      <div class="stage evt">
+        <span class="st">◆ 事件二 —— 「必须现在定」</span>
+        <span class="sd">一个截止：季度末、新客户下周就来、预算要清零、承诺了别人。<strong>没有这个事件，主动寻找可以无限期拖下去。</strong></span>
+        <span class="ask">问：为什么是那个时候定的？再晚一个月会怎样？</span>
+      </div>
+      <div class="stage">
+        <span class="st">4 · 做决定</span>
+        <span class="sd">权衡取舍。他一定放弃了某些东西才选的你 —— <strong>他放弃了什么，比他选了什么更能说明他真正在乎什么。</strong></span>
+        <span class="ask">问：最后是在哪两个之间挑？你放弃了什么？</span>
+      </div>
+      <div class="stage">
+        <span class="st">5 · 第一次真用（小雇佣）</span>
+        <span class="sd">付钱只是「大雇佣」。<strong>真正决定他会不会留下的是「小雇佣」—— 他第一次拿它干成一件真事。</strong></span>
+        <span class="ask">问：拿到之后第一件事你想干什么？后来干成了吗？</span>
+      </div>
+      <div class="stage">
+        <span class="st">6 · 持续使用 / 后悔</span>
+        <span class="sd">他把它编进了自己的流程，还是躺在那儿吃灰？</span>
+        <span class="ask">问：现在你每周用它几次？在什么场景下？</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="lbl">大雇佣 vs 小雇佣 —— 最容易死的地方</span>
+      <p><strong>大雇佣 = 他付了钱。小雇佣 = 他真的用它干成了一件事。</strong><br>
+      只有大雇佣没有小雇佣，是最危险的状态：钱进来了，价值没交付，人一定会走，而且再也不回来。<br>
+      更糟的是这种客户会让你误判 —— 你以为产品成立了，其实只是一次冲动。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 03</span>
+    <div>
+      <h2>三层价值：他真正买的是哪一层</h2>
+      <p>功能层最容易被抄，也最便宜。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="cards">
+      <div class="card"><span class="n">第一层</span><h4>功能价值</h4><p>它替我省了时间/钱/步骤。<br><span style="color:var(--muted)">最容易讲，也最容易被比价。</span></p></div>
+      <div class="card"><span class="n">第二层</span><h4>情绪价值</h4><p>我不用再提心吊胆了 / 我不用再觉得自己很业余。<br><span style="color:var(--muted)">通常是真正的购买理由。</span></p></div>
+      <div class="card"><span class="n">第三层</span><h4>社会价值</h4><p>我在客户/老板/同行面前更像个专业的人。<br><span style="color:var(--muted)">最贵的一层，也最难被替代。</span></p></div>
+    </div>
+    <p>访谈里判断的方法：当他讲到某一句<strong>语速变快、身体前倾、开始重复</strong>，那个点就是他真正的价值层。<strong>能量峰值 = 真实动机</strong>，而它几乎从不出现在功能上。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 04</span>
+    <div>
+      <h2>访谈怎么做：还原一次真实的购买</h2>
+      <p>访谈对象不是「潜在客户」，是<strong>最近真的买过（或真的放弃过）的人</strong>。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="script">
+      <span class="lbl">开场</span>
+      <p>「我不是来推销的。我想搞明白你当时是怎么一步步做这个决定的 —— 像放录像一样，从最开始讲起。<strong>你能记得的第一个念头是什么时候？</strong>」</p>
+    </div>
+
+    <h3>四个必须挖到的东西</h3>
+    <ol>
+      <li><strong>两个事件。</strong>没挖到事件，你的时间线就是假的。事件永远是<strong>具体的一天、一件事、一个人说的一句话</strong>。</li>
+      <li><strong>他解雇了什么。</strong>「在这之前你是怎么办的？」—— 那个才是你真正的竞争对手。</li>
+      <li><strong>他放弃了什么。</strong>「你还考虑过什么？为什么没选？」</li>
+      <li><strong>第一次真用是什么时候、干成了没有。</strong>这决定了他会不会留下。</li>
+    </ol>
+
+    <div class="note warn">
+      <span class="lbl">别做的事</span>
+      <p>别问「你为什么买」—— 人会当场编一个听起来理性的理由。<br>
+      要问<strong>「那段时间你生活里在发生什么」</strong>，让他讲故事。真正的原因藏在故事里，不在他的总结里。</p>
+    </div>
+
+    <h3>访谈完必须能填出这张表</h3>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>栏位</th><th>填什么</th></tr></thead>
+      <tbody>
+        <tr><td>推力</td><td>他当时具体被什么逼着</td></tr>
+        <tr><td>拉力</td><td>他想象中用了之后是什么样</td></tr>
+        <tr><td>焦虑</td><td>他当时担心什么（问出来才算）</td></tr>
+        <tr><td>惯性</td><td>他之前的办法里有什么舍不得</td></tr>
+        <tr><td>事件一 / 事件二</td><td>哪一天、发生了什么</td></tr>
+        <tr><td>解雇了谁</td><td>之前用什么凑合</td></tr>
+        <tr><td>第一次真用</td><td>干了什么、成了没有</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p style="font-size:14.5px; color:var(--muted)">填不满 = 这场访谈没做完，别急着下结论。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">速查</span>
+    <div>
+      <h2>一页纸</h2>
+      <p>卖不动的时候，按这个顺序自查。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="script">
+      <span class="lbl">卡住了？按顺序问自己</span>
+      <p><strong>1.</strong> 他有推力吗？（没有 = 别卖了，这不是客户，是礼貌的旁观者）</p>
+      <p><strong>2.</strong> 他解雇的是谁？（说不出 = 我不知道我在跟什么竞争）</p>
+      <p><strong>3.</strong> 他的事件二是什么？（没有截止 = 他会永远「再想想」）</p>
+      <p><strong>4.</strong> 他的焦虑具体是哪一条？（没问出来 = 我在加拉力，白使劲）</p>
+      <p><strong>5.</strong> 他有没有完成「小雇佣」？（没有 = 收了钱也会走）</p>
+    </div>
+
+    <div class="note">
+      <span class="lbl">一句话</span>
+      <p><strong>找到那些已经在挣扎、并且已经开始自己想办法的人。</strong>他们的推力是现成的，你只需要减掉焦虑和惯性。<br>
+      对着没有推力的人做营销，是这个世界上最贵的浪费。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>《Demand-Side Sales 101》· Bob Moesta · 工作手册其二 / 共三 —— 配套：<strong>妈妈测试</strong>（怎么问才不被骗）、<strong>$100M Offers</strong>（怎么把找到的需求包成没法拒绝的报价）。</p>
+</footer>
+
+</div>

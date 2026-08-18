@@ -1,0 +1,364 @@
+<title>大满贯提案</title>
+<style>
+:root{
+  --paper:#F3F1EC; --ink:#1C1710; --ink-2:#4A4034; --muted:#7C7263;
+  --rule:#DFDACF; --card:#FFFFFF; --card-2:#EAE6DD;
+  --up:#8A6512; --up-soft:#F3E9D2;     /* 要变大的 */
+  --down:#3A5878; --down-soft:#E2E9F1; /* 要变小的 */
+  --shadow:0 1px 2px rgba(28,23,16,.06), 0 10px 28px -18px rgba(28,23,16,.4);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#14110C; --ink:#EFE9DC; --ink-2:#C3B9A5; --muted:#8B806C;
+    --rule:#2D2820; --card:#1D1913; --card-2:#241F17;
+    --up:#D9A83F; --up-soft:#332714; --down:#7FA6CE; --down-soft:#16212D;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14110C; --ink:#EFE9DC; --ink-2:#C3B9A5; --muted:#8B806C;
+  --rule:#2D2820; --card:#1D1913; --card-2:#241F17;
+  --up:#D9A83F; --up-soft:#332714; --down:#7FA6CE; --down-soft:#16212D;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -18px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:16.5px; line-height:1.72; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px; margin:0 auto; padding:0 24px 96px}
+.col{max-width:64ch}
+h1,h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Songti SC",serif;
+  font-weight:600; letter-spacing:-.012em; text-wrap:balance; margin:0}
+
+header.mast{border-bottom:2px solid var(--ink); padding:56px 0 20px; margin-bottom:44px}
+.kicker{font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:11.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--up); margin:0 0 14px}
+h1{font-size:clamp(38px,6vw,60px); line-height:1.04; margin-bottom:14px}
+.sub{font-size:17px; color:var(--ink-2); margin:0; max-width:56ch;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif}
+.meta{display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:22px; font-size:12.5px; color:var(--muted)}
+.meta b{color:var(--ink-2); font-weight:600}
+
+section{margin:0 0 60px}
+.sec-head{display:flex; gap:16px; align-items:baseline; border-top:1px solid var(--rule);
+  padding-top:14px; margin-bottom:22px}
+.sec-num{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--up);
+  letter-spacing:.1em; flex:0 0 auto; padding-top:5px}
+h2{font-size:clamp(24px,3.4vw,31px); line-height:1.2}
+.sec-head p{margin:6px 0 0; font-size:14px; color:var(--muted)}
+h3{font-size:16.5px; margin:32px 0 10px; font-weight:700}
+p{margin:0 0 15px}
+.col p,.col li{color:var(--ink-2)}
+strong{color:var(--ink); font-weight:650}
+ul,ol{margin:0 0 15px; padding-left:1.15em}
+li{margin:0 0 7px}
+blockquote{margin:20px 0; padding:0 0 0 20px; border-left:3px solid var(--ink); font-size:18px;
+  line-height:1.6; font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif}
+
+/* ── 价值方程（真分数） ───────────────── */
+.veq{background:var(--card); border:1px solid var(--rule); border-radius:5px; padding:26px 22px;
+  margin:6px 0 20px; box-shadow:var(--shadow); text-align:center}
+.veq .lhs{font-size:19px; font-weight:700; color:var(--ink); vertical-align:middle;
+  display:inline-block; margin-right:12px}
+.frac{display:inline-block; vertical-align:middle; text-align:center}
+.frac .num{padding:0 14px 10px; border-bottom:2px solid var(--ink); display:block}
+.frac .den{padding:10px 14px 0; display:block}
+.term{display:inline-block; padding:5px 11px; border-radius:3px; font-size:14.5px;
+  font-weight:650; margin:3px 4px; line-height:1.35}
+.term.u{background:var(--up-soft); color:var(--up)}
+.term.d{background:var(--down-soft); color:var(--down)}
+.veq .arrow{font-family:ui-monospace,Consolas,monospace; font-size:11px; letter-spacing:.1em;
+  display:block; margin-top:14px; color:var(--muted)}
+.veq .arrow b.u{color:var(--up)} .veq .arrow b.d{color:var(--down)}
+
+/* ── 步骤 ─────────────────────────────── */
+.steps{counter-reset:s; margin:6px 0 20px; padding:0; list-style:none}
+.steps li{counter-increment:s; position:relative; padding:0 0 20px 46px; margin:0}
+.steps li::before{content:counter(s); position:absolute; left:0; top:1px; width:30px; height:30px;
+  border-radius:50%; background:var(--up-soft); color:var(--up); display:flex;
+  align-items:center; justify-content:center; font-family:ui-monospace,Consolas,monospace;
+  font-size:13px; font-weight:700}
+.steps li b{display:block; color:var(--ink); font-size:15.5px; margin-bottom:3px}
+.steps li span{font-size:14.5px; color:var(--ink-2); line-height:1.62}
+
+.note{border-left:3px solid var(--up); background:var(--card-2); padding:14px 18px;
+  margin:0 0 18px; border-radius:0 3px 3px 0}
+.note.cool{border-left-color:var(--down)}
+.note p:last-child{margin-bottom:0}
+.note .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--up); display:block; margin-bottom:6px}
+.note.cool .lbl{color:var(--down)}
+
+.scroll{overflow-x:auto; margin:0 0 18px}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:540px}
+th,td{text-align:left; padding:10px 14px 10px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600}
+td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); gap:14px; margin:0 0 20px}
+.card{background:var(--card); border:1px solid var(--rule); border-radius:4px; padding:16px 17px;
+  box-shadow:var(--shadow)}
+.card h4{margin:0 0 8px; font-size:14.5px; font-weight:700; color:var(--ink)}
+.card p{margin:0; font-size:13.5px; color:var(--ink-2); line-height:1.6}
+.card .n{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; color:var(--up);
+  letter-spacing:.12em; display:block; margin-bottom:9px}
+
+.script{background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--up);
+  padding:15px 18px; margin:0 0 14px; border-radius:0 3px 3px 0; font-size:15px}
+.script .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--up); display:block; margin-bottom:8px}
+.script p{margin:0 0 9px; color:var(--ink)}
+.script p:last-child{margin-bottom:0}
+
+footer{border-top:2px solid var(--ink); padding-top:18px; margin-top:70px; font-size:13px; color:var(--muted)}
+a{color:var(--up)}
+:focus-visible{outline:2px solid var(--up); outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:640px){
+  body{font-size:16px}
+  .sec-head{flex-direction:column; gap:4px}
+  .sec-num{padding-top:0}
+  .veq .lhs{display:block; margin:0 0 14px}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">工作手册 · 其三 / 共三</p>
+  <h1>大满贯提案</h1>
+  <p class="sub">把东西包装到「拒绝它显得很蠢」的程度 —— 然后收贵得多的钱。<br>Alex Hormozi,《$100M Offers》</p>
+  <div class="meta">
+    <span><b>用途</b> 有需求了、卖不动的时候</span>
+    <span><b>核心</b> 价值方程 · 剪与堆</span>
+    <span><b>铁律</b> 别打折，改提案</span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">心法</span>
+    <div>
+      <h2>顺序不能反：市场 &gt; 提案 &gt; 说服</h2>
+      <p>在饿的人群里卖平庸的东西，胜过在饱的人群里卖完美的东西。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <blockquote>你没法把一个不想要的东西卖给不想要它的人。先找饿着肚子的人群。</blockquote>
+    <p>好市场的四个指标 —— <strong>四条全占才动手</strong>：</p>
+    <div class="cards">
+      <div class="card"><span class="n">指标 01</span><h4>痛得厉害</h4><p>不是「有了更好」，是「没有很难受」。痛的程度直接决定你能收多少钱。</p></div>
+      <div class="card"><span class="n">指标 02</span><h4>有钱付</h4><p>再痛，兜里没钱也是零。<strong>找那个已经有预算科目的口袋。</strong></p></div>
+      <div class="card"><span class="n">指标 03</span><h4>找得到</h4><p>你能说出「他们都聚在哪儿」。找不到 = 获客成本无限大。</p></div>
+      <div class="card"><span class="n">指标 04</span><h4>在变大</h4><p>顺水推舟和逆水行舟的差别，通常比你努力的差别大。</p></div>
+    </div>
+
+    <div class="note">
+      <span class="lbl">最贵的错误</span>
+      <p><strong>在一个错的市场里优化提案。</strong>提案再好也救不回一个不痛、没钱、找不到的人群 —— 你只会把「卖不出去」误诊成「产品不够好」，然后回去继续写代码。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 01</span>
+    <div>
+      <h2>价值方程</h2>
+      <p>全书的引擎。任何提案都能被拆进这四个格子。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="veq">
+      <span class="lhs">价值 =</span>
+      <span class="frac">
+        <span class="num"><span class="term u">梦想成果</span><span class="term u">达成的确信度</span></span>
+        <span class="den"><span class="term d">要等多久</span><span class="term d">要费多大劲</span></span>
+      </span>
+      <span class="arrow">分子 <b class="u">↑ 越大越好</b> ｜ 分母 <b class="d">↓ 越小越好</b></span>
+    </div>
+
+    <div class="scroll">
+    <table>
+      <thead><tr><th>因子</th><th>客户心里的问题</th><th>你怎么动它</th></tr></thead>
+      <tbody>
+        <tr><td>梦想成果</td><td>我最终能得到什么？</td><td>说他真正想要的那个结果（多签一单、不再被客户问住），<strong>不是你的功能</strong>。</td></tr>
+        <tr><td>确信度</td><td>对我真能成吗？</td><td>案例、数据、保证、「我先替你做一次」。<strong>这一项通常是最短板。</strong></td></tr>
+        <tr><td>要等多久</td><td>多久能见效？</td><td>造一个「立刻就有的小胜利」。<strong>首日价值比最终价值更重要。</strong></td></tr>
+        <tr><td>要费多大劲</td><td>我要付出什么？</td><td>砍步骤、替他做、免培训、不用换现有流程。</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="note cool">
+      <span class="lbl">最容易被忽略的一项</span>
+      <p>大多数人拼命放大<strong>梦想成果</strong>（吹得更响），但客户真正卡住的往往是<strong>分母</strong>：太慢、太麻烦。<br>
+      <strong>把「要等多久」和「要费多大劲」压到接近 0，价值会趋近无穷大</strong> —— 这比把承诺吹大一倍有效得多，而且不用撒谎。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 02</span>
+    <div>
+      <h2>造一个提案：六步</h2>
+      <p>照着做，一次一小时能出一版。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <ol class="steps">
+      <li><b>写下梦想成果</b><span>一句话，用<strong>客户自己的原话</strong>。不是「提升效率」，是「不用在客户面前被问住答不上来」。</span></li>
+      <li><b>穷举障碍</b><span>他从现在走到那个结果，<strong>路上每一个会绊倒他的东西</strong>，按顺序列。列得越细越好，20 条不算多。这一步花的时间最长，也最值钱。</span></li>
+      <li><b>把每个障碍翻成解决方案</b><span>机械对应。「不知道该看哪个区」→「一张按他预算算好的区域短名单」。</span></li>
+      <li><b>为每个方案想交付方式</b><span>同一件事可以一对一做、可以群做、可以给模板、可以做成自动的、可以你替他做。<strong>先不管成本，全列出来。</strong></span></li>
+      <li><b>剪</b><span>删掉「客户不太在乎 + 你成本高」的那些。<strong>不心疼。</strong></span></li>
+      <li><b>堆</b><span>保留并强化「客户极在乎 + 你成本低」的那些，把它们打包成一个整体。这就是大满贯提案。</span></li>
+    </ol>
+
+    <div class="note">
+      <span class="lbl">两个筛子（第 5、6 步用）</span>
+      <p><strong>十倍价格测试：</strong>如果我收十倍的钱，我得加什么才能让人觉得值？—— 那个东西往往才是真正的提案。<br>
+      <strong>十分之一测试：</strong>如果只能收十分之一，我怎么交付还不亏？—— 逼出成本极低但价值极高的交付方式。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 03</span>
+    <div>
+      <h2>四个放大器</h2>
+      <p>提案本身定了之后，再上这四个。顺序别反。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>① 稀缺 —— 供给有限</h3>
+    <ul>
+      <li>只接 N 个客户 / 每月只开 N 个名额 / 只服务某一类人。</li>
+      <li><strong>必须是真的。</strong>假稀缺被识破一次，信任全没。</li>
+      <li>一人公司天然有真稀缺：<strong>你的时间</strong>。「我这个月只能亲自带三家」是真话。</li>
+    </ul>
+
+    <h3>② 紧迫 —— 有截止</h3>
+    <ul>
+      <li>批次开班、滚动截止、季节性、涨价倒计时、赠品到期。</li>
+      <li>没有截止，「感兴趣」会永远停在「感兴趣」。<strong>这是最多提案死掉的地方。</strong></li>
+    </ul>
+
+    <h3>③ 赠品 —— 分开报价的附加物</h3>
+    <ul>
+      <li>把一个大提案拆成「主体 + 若干个各自有名字、各自标价的赠品」，感知价值远高于打包成一坨。</li>
+      <li>好赠品专治<strong>某一个具体的焦虑</strong>：「怕自己搞不定？送你第一次我帮你做。」</li>
+      <li>每个赠品都要有名字、有理由、有一个明确的价格标签。</li>
+    </ul>
+
+    <h3>④ 保证 —— 反转风险</h3>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>类型</th><th>长什么样</th><th>什么时候用</th></tr></thead>
+      <tbody>
+        <tr><td>无条件</td><td>不满意全退，不问原因</td><td>信任最缺、单价不高时</td></tr>
+        <tr><td>有条件</td><td>做到 A/B/C 还没效果 → 免费再做 / 送额度 / 退款</td><td>需要客户配合才有效果时</td></tr>
+        <tr><td>反向保证</td><td>不退款，但公开写明「谁不该买」</td><td>你不缺客户、要筛人时</td></tr>
+        <tr><td>隐含保证</td><td>按结果收费、分成</td><td>结果可量化时（最强）</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="note">
+      <span class="lbl">比退款更强的一句</span>
+      <p>「如果没做到，<strong>我继续免费给你做，直到做到为止</strong>。」<br>
+      退款只是把钱还他，他损失的时间没了 —— 而时间才是他真正怕损失的东西。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 04</span>
+    <div>
+      <h2>定价：涨价，别打折</h2>
+      <p>这一章最反直觉，也最赚钱。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <ul>
+      <li><strong>降价是负和的。</strong>它同时干掉三样东西：你的利润、产品在客户心里的价值、以及<strong>客户自己的投入程度</strong>。付得少的人不当回事，不当回事就没结果，没结果就退订、就骂你。</li>
+      <li><strong>免费和便宜会毁掉「小雇佣」。</strong>这是最隐蔽的伤害：白拿的东西，人不会认真用，于是永远拿不到首次价值。</li>
+      <li><strong>在真空里定价。</strong>价格锚定在「他不解决这个问题会损失多少」，不是「竞品收多少」。一旦你跟竞品比价，你就已经是商品了。</li>
+      <li><strong>贵一点反而好卖 —— 前提是提案配得上。</strong>价格本身就是价值信号。</li>
+    </ul>
+
+    <div class="note cool">
+      <span class="lbl">卖不动的时候</span>
+      <p>不要降价。<strong>回到价值方程，看是哪一格塌了</strong>：<br>
+      是他不信能成（确信度）？还是太慢（时间）？还是太费劲（努力）？<br>
+      降价一格都修不了，只会把问题盖住，还让你再也涨不回去。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">技术 05</span>
+    <div>
+      <h2>给提案起名：MAGIC</h2>
+      <p>名字不是包装，名字决定了他有没有兴趣听完第一句。</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>字母</th><th>成分</th><th>例子</th></tr></thead>
+      <tbody>
+        <tr><td>M</td><td>吸引的理由（为什么现在）</td><td>「免费」「限 10 家」</td></tr>
+        <tr><td>A</td><td>给谁（对象越窄越好）</td><td>「迪拜期房经纪」</td></tr>
+        <tr><td>G</td><td>达成什么目标</td><td>「让客户当场信你的报价」</td></tr>
+        <tr><td>I</td><td>多长时间</td><td>「7 天」</td></tr>
+        <tr><td>C</td><td>叫什么（容器名）</td><td>「陪跑」「诊断」「速成班」</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="script">
+      <span class="lbl">拼起来</span>
+      <p>「<strong>给 10 家迪拜期房经纪的 7 天成交数据陪跑</strong>」<br>
+      —— 比「AI 房产分析平台」有力一百倍，因为它同时说清了给谁、多久、拿到什么、为什么是现在。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">速查</span>
+    <div>
+      <h2>一页纸</h2>
+      <p>提案出不来 / 卖不动的时候，按顺序过。</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="script">
+      <span class="lbl">自查九问</span>
+      <p><strong>1.</strong> 这群人是真痛、有钱、找得到、在变大吗？（不是 → 换人，别改提案）</p>
+      <p><strong>2.</strong> 梦想成果我能用<strong>他的原话</strong>说出来吗？</p>
+      <p><strong>3.</strong> 我列出他路上的障碍了吗？列了几条？（少于 10 条 = 没列完）</p>
+      <p><strong>4.</strong> 他凭什么相信对他能成？我拿什么证明？</p>
+      <p><strong>5.</strong> 他多久能拿到<strong>第一个</strong>小胜利？（超过一天就太慢）</p>
+      <p><strong>6.</strong> 他要付出多少力气？能不能我替他做第一次？</p>
+      <p><strong>7.</strong> 有真的稀缺和真的截止吗？</p>
+      <p><strong>8.</strong> 我的保证是不是「比退款更好」？</p>
+      <p><strong>9.</strong> 我是不是又想降价了？（是 → 回第 4 到 6 题）</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>《$100M Offers》· Alex Hormozi · 工作手册其三 / 共三 —— 配套：<strong>妈妈测试</strong>（怎么问才不被骗）、<strong>需求侧销售 101</strong>（怎么看懂他为什么买）。</p>
+</footer>
+
+</div>

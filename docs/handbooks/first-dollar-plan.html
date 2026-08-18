@@ -1,0 +1,473 @@
+<title>第一块钱</title>
+<style>
+:root{
+  --bg:#ECEEF0; --ink:#13171A; --ink-2:#3D454B; --muted:#6C757C;
+  --rule:#D3D8DC; --card:#FFFFFF; --card-2:#E2E6E9;
+  --hot:#AE3527; --hot-soft:#F7E4E1;
+  --go:#1B6349; --go-soft:#DEEDE6;
+  --shadow:0 1px 2px rgba(19,23,26,.06), 0 10px 28px -18px rgba(19,23,26,.4);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1113; --ink:#E7EBEE; --ink-2:#B3BCC2; --muted:#7C878E;
+    --rule:#252C31; --card:#161A1D; --card-2:#1D2327;
+    --hot:#E58273; --hot-soft:#331915; --go:#5FBF9A; --go-soft:#12261E;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1113; --ink:#E7EBEE; --ink-2:#B3BCC2; --muted:#7C878E;
+  --rule:#252C31; --card:#161A1D; --card-2:#1D2327;
+  --hot:#E58273; --hot-soft:#331915; --go:#5FBF9A; --go-soft:#12261E;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 28px -18px rgba(0,0,0,.9);
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:16px; line-height:1.7; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px; margin:0 auto; padding:0 22px 96px}
+.col{max-width:66ch}
+h1,h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,"Songti SC",serif;
+  font-weight:600; letter-spacing:-.012em; text-wrap:balance; margin:0}
+.mono{font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace}
+.num{font-variant-numeric:tabular-nums}
+
+header.mast{border-bottom:2px solid var(--ink); padding:52px 0 20px; margin-bottom:34px}
+.kicker{font-family:ui-monospace,Consolas,monospace; font-size:11.5px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--hot); margin:0 0 13px}
+h1{font-size:clamp(36px,5.6vw,56px); line-height:1.04; margin-bottom:13px}
+.sub{font-size:17px; color:var(--ink-2); margin:0; max-width:58ch;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif}
+
+/* 头条数字 */
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:12px; margin:26px 0 0}
+.tile{background:var(--card); border:1px solid var(--rule); border-radius:5px; padding:14px 16px;
+  box-shadow:var(--shadow)}
+.tile .k{font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  margin:0 0 6px; font-family:ui-monospace,Consolas,monospace}
+.tile .v{font-size:30px; line-height:1; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums}
+.tile .v.hot{color:var(--hot)}
+.tile .h{font-size:12.5px; color:var(--muted); margin:6px 0 0; line-height:1.45}
+
+section{margin:0 0 54px}
+.sec-head{display:flex; gap:15px; align-items:baseline; border-top:1px solid var(--rule);
+  padding-top:14px; margin-bottom:20px}
+.sec-num{font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--hot);
+  letter-spacing:.1em; flex:0 0 auto; padding-top:5px}
+h2{font-size:clamp(23px,3.2vw,30px); line-height:1.2}
+.sec-head p{margin:6px 0 0; font-size:14px; color:var(--muted)}
+h3{font-size:16px; margin:28px 0 9px; font-weight:700}
+p{margin:0 0 14px}
+.col p,.col li{color:var(--ink-2)}
+strong{color:var(--ink); font-weight:650}
+ul,ol{margin:0 0 14px; padding-left:1.15em}
+li{margin:0 0 6px}
+blockquote{margin:20px 0; padding:14px 20px; border-left:3px solid var(--hot); background:var(--card-2);
+  font-size:17.5px; line-height:1.58; border-radius:0 4px 4px 0;
+  font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Songti SC",serif; color:var(--ink)}
+
+.scroll{overflow-x:auto; margin:0 0 18px; border-radius:5px}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:560px; background:var(--card)}
+th,td{text-align:left; padding:10px 13px; border-bottom:1px solid var(--rule); vertical-align:top}
+thead th{font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; background:var(--card-2); white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+td.e{font-family:ui-monospace,Consolas,monospace; font-size:12.5px; color:var(--ink); white-space:nowrap}
+td.r{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.pill{display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:650;
+  white-space:nowrap; font-family:ui-monospace,Consolas,monospace}
+.pill.hot{background:var(--hot-soft); color:var(--hot)}
+.pill.go{background:var(--go-soft); color:var(--go)}
+.pill.mut{background:var(--card-2); color:var(--muted)}
+
+.note{border-left:3px solid var(--hot); background:var(--card-2); padding:14px 18px;
+  margin:0 0 18px; border-radius:0 4px 4px 0}
+.note.go{border-left-color:var(--go)}
+.note p:last-child{margin-bottom:0}
+.note .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--hot); display:block; margin-bottom:6px}
+.note.go .lbl{color:var(--go)}
+
+/* 周计划脊柱 */
+.track{border-left:2px solid var(--rule); margin:6px 0 20px; padding:0}
+.wk{position:relative; padding:0 0 26px 26px}
+.wk::before{content:""; position:absolute; left:-8px; top:5px; width:14px; height:14px;
+  border-radius:3px; background:var(--card); border:2px solid var(--go)}
+.wk.now::before{background:var(--hot); border-color:var(--hot)}
+.wk:last-child{padding-bottom:0}
+.wk .wt{font-family:ui-monospace,Consolas,monospace; font-size:11px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--go); display:block; margin-bottom:3px}
+.wk.now .wt{color:var(--hot)}
+.wk h4{margin:0 0 7px; font-size:17px; font-weight:700; color:var(--ink)}
+.wk p,.wk li{font-size:14.5px; color:var(--ink-2)}
+.wk ul{margin:8px 0 0}
+
+.script{background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--go);
+  padding:15px 18px; margin:0 0 14px; border-radius:0 4px 4px 0; font-size:15px}
+.script .lbl{font-family:ui-monospace,Consolas,monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--go); display:block; margin-bottom:9px}
+.script p{margin:0 0 9px; color:var(--ink)}
+.script p:last-child{margin-bottom:0}
+
+pre{background:var(--card); border:1px solid var(--rule); border-radius:5px; padding:13px 16px;
+  overflow-x:auto; font-size:13px; line-height:1.65; margin:0 0 16px;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace; color:var(--ink-2)}
+pre b{color:var(--hot); font-weight:700}
+
+.stop{background:var(--card); border:1px solid var(--rule); border-radius:5px; overflow:hidden;
+  box-shadow:var(--shadow); margin:0 0 18px}
+.stop .row{display:flex; gap:14px; padding:12px 16px; border-bottom:1px solid var(--rule); align-items:baseline}
+.stop .row:last-child{border-bottom:none}
+.stop .m{flex:1; font-size:14.5px; color:var(--ink-2)}
+.stop .g{font-family:ui-monospace,Consolas,monospace; font-size:14px; font-weight:700; color:var(--go);
+  white-space:nowrap; font-variant-numeric:tabular-nums}
+
+footer{border-top:2px solid var(--ink); padding-top:18px; margin-top:66px; font-size:13px; color:var(--muted)}
+a{color:var(--go)}
+:focus-visible{outline:2px solid var(--go); outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:640px){
+  .sec-head{flex-direction:column; gap:4px}
+  .sec-num{padding-top:0}
+}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kicker">作战计划 · 2026-08-18 · 生产库实查</p>
+  <h1>第一块钱</h1>
+  <p class="sub">三本手册读完之后，对着 Pinzos 的真实数据得出的四周计划。<br>本计划不包含任何写代码的任务。</p>
+
+  <div class="tiles">
+    <div class="tile"><p class="k">现在付费</p><p class="v hot">0</p><p class="h">史上真扣过款的外部人：1</p></div>
+    <div class="tile"><p class="k">试用中</p><p class="v">12</p><p class="h">其中 8 个积分消耗 = 0</p></div>
+    <div class="tile"><p class="k">外部注册</p><p class="v">85</p><p class="h">开过试用 63</p></div>
+    <div class="tile"><p class="k">做出过产出物</p><p class="v hot">3</p><p class="h">做过 tour 的：0 人</p></div>
+    <div class="tile"><p class="k">一对一客户对话</p><p class="v hot">0</p><p class="h">至今为止，一次都没有</p></div>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">更正</span>
+    <div>
+      <h2>「一块钱都没赚到」不完全对</h2>
+      <p>而这个差别，是你现在最值钱的一条信息。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <p>有人掏过钱。一个人，一次。</p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <tbody>
+        <tr><td style="width:150px"><strong>谁</strong></td><td class="e">slavynchuk94@gmail.com<br><span style="color:var(--hot)">yaroslava.b@richkey.ae</span> —— RichKey，迪拜中介</td></tr>
+        <tr><td><strong>注册</strong></td><td>2026-07-10 <span class="mono">11:38:50</span></td></tr>
+        <tr><td><strong>付钱</strong></td><td>2026-07-10 <span class="mono">11:41:15</span> —— <span class="pill hot">注册后 3 分 25 秒</span></td></tr>
+        <tr><td><strong>买了</strong></td><td>Starter $25/月，Stripe 真扣款</td></tr>
+        <tr><td><strong>用了</strong></td><td><span class="mono">area_detail</span> <strong>36 次 / 跨 8 天</strong>、page_view 50</td></tr>
+        <tr><td><strong>没用</strong></td><td><span class="pill hot">tour 0</span> <span class="pill hot">报价单 0</span> <span class="pill hot">报告 0</span> <span class="pill hot">积分 0/200</span></td></tr>
+        <tr><td><strong>反常</strong></td><td>7/18 在<strong>已付费状态下</strong>又去点了「免费试用」</td></tr>
+        <tr><td><strong>最后看定价页</strong></td><td><strong>2026-08-14</strong> —— 4 天前，订阅到期前 3 天</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <blockquote>3 分 25 秒完成购买。然后 0 次使用经纪工具。</blockquote>
+    <p>按《需求侧销售》的话说：<strong>大雇佣完成了，小雇佣从没发生。</strong>钱进来了、价值一次都没交付 —— 书里说这是最危险的状态，人必然走。她走了。</p>
+    <p>而 3 分钟付钱说明一件更重要的事：<strong>她来的时候推力已经拉满。</strong>她不是来「评估软件」的，她是<strong>带着一件当天要办的事来的</strong>，看了一眼觉得能办，就付了。</p>
+    <div class="note">
+      <span class="lbl">整个项目最贵的一个未知</span>
+      <p><strong>她那天要办的到底是什么事？</strong><br>你可以直接去问她。她的邮箱就在上面。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">诊断 01</span>
+    <div>
+      <h2>使用最重的人，全都不是经纪</h2>
+      <p>按区域详情打开次数排序，剔除内部号。</p>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>邮箱</th><th class="r">区域详情</th><th class="r">跨天</th><th>最后活跃</th><th>角色</th></tr></thead>
+      <tbody>
+        <tr><td class="e">1758494342@qq.com</td><td class="r"><strong>187</strong></td><td class="r">10</td><td class="mono">08-14</td><td><span class="pill hot">买家</span></td></tr>
+        <tr><td class="e">tczhulei2001@msn.com</td><td class="r">78</td><td class="r">10</td><td class="mono">08-15</td><td><span class="pill hot">买家</span></td></tr>
+        <tr><td class="e">shuchang5681@gmail.com</td><td class="r">76</td><td class="r">1</td><td class="mono">07-21</td><td><span class="pill hot">买家</span></td></tr>
+        <tr><td class="e">lujunyi2000@yahoo.com</td><td class="r">51</td><td class="r">2</td><td class="mono">07-23</td><td><span class="pill hot">买家</span></td></tr>
+        <tr><td class="e">15211034562cy@gmail.com</td><td class="r">43</td><td class="r">11</td><td class="mono">08-12</td><td><span class="pill mut">开发商</span></td></tr>
+        <tr><td class="e">slavynchuk94@gmail.com</td><td class="r">36</td><td class="r">8</td><td class="mono">07-24</td><td><span class="pill go">唯一付过钱</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col">
+    <p><strong>前四名全是买家。全站使用最重的人（187 次 / 10 天）是个买家。</strong>而唯一掏过钱的经纪，行为跟买家一模一样：只查片区数据，不碰经纪工具。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">诊断 02</span>
+    <div>
+      <h2>四力表：七格里五格是空的</h2>
+      <p>不是「数据不够」，是从来没人去问过。</p>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>力</th><th>已知</th><th>状态</th></tr></thead>
+      <tbody>
+        <tr><td><strong>推力</strong></td><td>极强（3 分 25 秒付钱）</td><td><span class="pill go">有</span> 但不知道是什么</td></tr>
+        <tr><td><strong>拉力</strong></td><td>能查到片区数据</td><td><span class="pill mut">推测</span></td></tr>
+        <tr><td><strong>焦虑</strong></td><td>—</td><td><span class="pill hot">空 · 必须问</span></td></tr>
+        <tr><td><strong>惯性</strong></td><td>之前用什么查？</td><td><span class="pill hot">空 · 这才是真竞品</span></td></tr>
+        <tr><td><strong>事件一</strong></td><td>—</td><td><span class="pill hot">空 · 必须问</span></td></tr>
+        <tr><td><strong>事件二</strong></td><td>为什么偏偏是 7/10 那天</td><td><span class="pill hot">空 · 最贵的一问</span></td></tr>
+        <tr><td><strong>小雇佣</strong></td><td>从没发生（0 积分 0 产出）</td><td><span class="pill hot">死因</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">诊断 03</span>
+    <div>
+      <h2>一个已确认的产品事故</h2>
+      <p>她付了 $25，买到的档位里核心功能一个都没有。</p>
+    </div>
+  </div>
+
+  <div class="col">
+<pre>Starter ($25/月) 的档位限制：
+  credits_month:   200
+  reports_month:   10
+  brochures_month: 5
+  <b>sessions_month:   0   ← 不能建 tour</b>
+  <b>live_tours_month: 0   ← 不能带看</b>
+  <b>call_units_month: 0   ← 不能用语音</b></pre>
+    <p>这几乎肯定解释了 7/18 那个反常动作 —— <strong>一个付费用户跑去点「免费试用」</strong>，因为付费档不给她想要的东西。</p>
+    <p>《需求侧销售》管这个叫<strong>「用起来的焦虑」</strong>：他已经越过了买的门槛，却在门后被挡住。四种力里最容易修、也最少人去修的一种。</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">诊断 04</span>
+    <div>
+      <h2>价值方程：分子说错了，分母是灾难</h2>
+      <p>这就是 63 个试用里 60 个零使用的机械原因。</p>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>因子</th><th>现状</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>梦想成果</td><td>我们讲「给客户做一场漂亮的导览」</td><td><span class="pill hot">说错了 · 人买的是查得清数据</span></td></tr>
+        <tr><td>确信度</td><td>0 个案例、0 个可展示的成功客户</td><td><span class="pill hot">空</span></td></tr>
+        <tr><td>要等多久</td><td>先要有客户、先配一场 tour 才有价值</td><td><span class="pill hot">太慢</span></td></tr>
+        <tr><td>要费多大劲</td><td>自己建、自己配、自己发</td><td><span class="pill hot">太重</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="col">
+    <div class="note">
+      <span class="lbl">$100M Offers 的判决</span>
+      <p><strong>降价一格都修不了。</strong>$25 的 Starter 已经证明了 —— 便宜不但没带来使用，还在毁掉小雇佣（付得少的人不当回事，不当回事就没结果）。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">结论</span>
+    <div><h2>一句话</h2></div>
+  </div>
+  <div class="col">
+    <blockquote>唯一掏过钱的人，在 3 分钟内为「查迪拜片区数据」付了钱，然后一次都没碰过我们花几个月做的经纪工具。<br><br>我们在卖导览，市场在买数据。<br>而这件事，你从来没跟任何一个真人当面确认过。</blockquote>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">名单</span>
+    <div>
+      <h2>该打给谁：十个人，已经在库里</h2>
+      <p>共同点 —— 他们都已经在挣扎，并且已经自己动手找过办法。《需求侧销售》说这就是唯一值得找的人：推力现成，你只要减焦虑和惯性。</p>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th style="width:34px">#</th><th>谁</th><th>为什么是他</th><th>最后活跃</th></tr></thead>
+      <tbody>
+        <tr><td class="r">1</td><td class="e">15211034562cy@gmail.com</td><td><strong>撞付费墙 16 次</strong>、看定价页 6 次、区域详情 43 次跨 11 天</td><td class="mono"><span class="pill hot">08-17</span></td></tr>
+        <tr><td class="r">2</td><td class="e">353199031@qq.com<br><span style="color:var(--muted)">Jocelyn Wang</span></td><td><strong>唯一真在用的试用</strong>（180 积分）、传过 1 个楼盘、<strong>8/23 到期</strong></td><td class="mono"><span class="pill hot">08-17</span></td></tr>
+        <tr><td class="r">3</td><td class="e">slavynchuk94@gmail.com<br><span style="color:var(--muted)">RichKey</span></td><td><strong>唯一付过钱的</strong>、8/17 订阅刚断</td><td class="mono">08-14</td></tr>
+        <tr><td class="r">4</td><td class="e">joe.liang@luxlivings.com</td><td><strong>公司邮箱</strong>（LuxLivings，迪拜中介）、看定价页 3 次</td><td class="mono">08-15</td></tr>
+        <tr><td class="r">5</td><td class="e">1758494342@qq.com</td><td><strong>全站使用最重：187 次 / 10 天</strong>（买家）</td><td class="mono">08-14</td></tr>
+        <tr><td class="r">6</td><td class="e">tczhulei2001@msn.com</td><td>78 次 / 10 天（买家）</td><td class="mono">08-15</td></tr>
+        <tr><td class="r">7</td><td class="e">aliceananan330@gmail.com<br><span style="color:var(--muted)">安小姐</span></td><td>试用中、<strong>今天还在活动</strong>、区域详情 34 次</td><td class="mono"><span class="pill hot">08-18</span></td></tr>
+        <tr><td class="r">8</td><td class="e">mjalmashghouni@gmail.com</td><td>区域详情 27、撞墙 4、看价 6</td><td class="mono">08-14</td></tr>
+        <tr><td class="r">9</td><td class="e">rohitachnoor@gmail.com</td><td>撞墙 6、看价 7</td><td class="mono">08-07</td></tr>
+        <tr><td class="r">10</td><td class="e">guangluyang1214@gmail.com<br><span style="color:var(--muted)">Lulu Yang</span></td><td>试用中到 9/16、8/17 还在</td><td class="mono">08-17</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">计划</span>
+    <div>
+      <h2>四周</h2>
+      <p>铁律：<strong>本计划不包含任何写代码的任务</strong>（唯一例外见第 1 周）。</p>
+    </div>
+  </div>
+
+  <div class="track">
+    <div class="wk now">
+      <span class="wt">第 0 周 · 今天起 48 小时</span>
+      <h4>把 RichKey 那一单的时间线问出来</h4>
+      <p>黄金窗口：她 <strong>8/14 还在看定价页</strong>，订阅 <strong>8/17 刚结束</strong>。这是三个月里最好的时机，一周后就凉。</p>
+      <p><code class="mono" style="font-size:12.5px">docs/reports/2026-07-28-outreach-richkey-paying-agent.md</code> 里那封邮件已经定稿了 <strong>21 天，一直没发</strong>。今天发出去，但把三个问题换掉 —— 原版问的是「体验如何」，那是意见不是事实。</p>
+    </div>
+    <div class="wk">
+      <span class="wt">第 1 周</span>
+      <h4>10 场一对一对话</h4>
+      <p>名单在上面。每场：开场不许提我们的产品，按购买时间线问，必挖<strong>两个事件 / 他解雇了谁 / 他放弃了什么 / 第一次真用干成了没有</strong>，收尾必须拿到一个承诺。</p>
+      <p><strong>产出</strong>：一张 10 行的表，列就是四力表那七格。当天填完，不许过夜。</p>
+      <ul>
+        <li><strong>并行的唯一技术动作（15 分钟）</strong>：查清 Starter 档 <span class="mono">sessions_month: 0</span> 这件事。它已经伤过唯一的付费客户，是修事故不是加功能。做完立刻回去打电话。</li>
+      </ul>
+    </div>
+    <div class="wk">
+      <span class="wt">第 2 周</span>
+      <h4>造提案，不写代码</h4>
+      <p>按《$100M Offers》六步：定梦想成果（<strong>从访谈原话里抄，不许自己编</strong>）→ 穷举 ≥15 条障碍 → 翻成方案 → 列交付方式（<strong>先全部假设手工交付</strong>）→ 剪 → 堆 + 命名。</p>
+    </div>
+    <div class="wk">
+      <span class="wt">第 3 周</span>
+      <h4>卖 3 单</h4>
+      <p>回到推力最强的 5 个人，带提案回去。必须有真截止。目标是 3 个人掏钱 —— <strong>金额不重要，掏钱这个动作重要</strong>。</p>
+      <p>每单成交后 <strong>48 小时内必须完成一次小雇佣</strong>（他拿到东西并真的发给了他的客户）。<strong>没完成小雇佣的成交不算成交</strong> —— RichKey 已经用 $25 教过这一课。</p>
+    </div>
+    <div class="wk">
+      <span class="wt">第 4 周</span>
+      <h4>结账</h4>
+      <p>只看四个数字（见下）。三项达标 → <strong>这时候才开始写代码</strong>，把手工的部分自动化。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">提案</span>
+    <div>
+      <h2>初版假设提案</h2>
+      <p>先用它去测，别等完美。第 1 周访谈完再按原话改。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="script">
+      <span class="lbl">给 10 家迪拜经纪的 7 天片区尽调陪跑</span>
+      <p>你把这周在跟的 3 个盘发我 → <strong>48 小时内</strong>我给你一份能直接发给客户的片区对标：成交中位价、溢价率、收益率、3 年涨幅，<strong>全部标 DLD 出处</strong>。</p>
+      <p><strong>名额</strong>：这个月只接 3 家（真稀缺 —— 我一个人手工做）</p>
+      <p><strong>保证</strong>：你觉得没法直接发给客户，我重做到你能发为止</p>
+      <p><strong>价格</strong>：先按 <strong>$150/月</strong> 试</p>
+    </div>
+
+    <div class="note go">
+      <span class="lbl">为什么手工交付</span>
+      <p>手册三的<strong>十分之一测试</strong>。手工能立刻把「要等多久」和「要费多大劲」压到接近 0 —— 那正是价值方程里塌得最狠的两格。<strong>代码是等有人付第三次之后才写的东西。</strong></p>
+    </div>
+    <div class="note">
+      <span class="lbl">为什么是 $150 不是 $25</span>
+      <p>Property Monitor 收 AED500+/月（≈$136）且有人付 —— 那是锚，不是我们的 $25。<br>$25 不是「便宜好卖」，是<strong>在毁掉小雇佣</strong>：付得少的人不当回事，不当回事就没结果。<strong>63 个试用零使用就是这条的实证。</strong></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">验收</span>
+    <div>
+      <h2>第 4 周只看这四个数字</h2>
+      <p>写在前面，别事后找理由。</p>
+    </div>
+  </div>
+
+  <div class="stop">
+    <div class="row"><span class="m">完成的一对一对话</span><span class="g">≥ 10 场</span></div>
+    <div class="row"><span class="m">能填满四力表七格的对话</span><span class="g">≥ 6 场</span></div>
+    <div class="row"><span class="m">掏钱的人</span><span class="g">≥ 3 人</span></div>
+    <div class="row"><span class="m">完成小雇佣的人（真发给了他的客户）</span><span class="g">≥ 2 人</span></div>
+  </div>
+
+  <div class="col">
+    <ul>
+      <li><strong>对话够、有人付</strong> → 提案成立，开始写代码把手工部分自动化。</li>
+      <li><strong>对话够、没人付</strong> → 提案有问题，回六步重做。<strong>不许降价。</strong></li>
+      <li><strong>10 场里能填满四力表的 &lt; 4 场</strong> → 这群人不痛。<strong>别改提案，换人群。</strong>（在错市场里优化提案是最贵的错误）</li>
+      <li><strong>对话没做够</strong> → 唯一真正的失败模式，也是过去三个月一直在发生的那个。</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">禁令</span>
+    <div><h2>这四周明确不做的事</h2></div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>不做</th><th>为什么</th></tr></thead>
+      <tbody>
+        <tr><td>加任何新功能</td><td>63 个试用零使用，问题不在功能少</td></tr>
+        <tr><td>优化 Luna Tour</td><td>外部经纪做过的 tour：<strong>0</strong>，做了一年</td></tr>
+        <tr><td>做开发商那条线</td><td>55 个楼盘里外部只传过 <strong>1</strong> 个；23 个 role=developer 零供给</td></tr>
+        <tr><td>降价 / 再加免费额度</td><td>$25 已证明便宜不解决问题，而且在毁小雇佣</td></tr>
+        <tr><td>再写一份研究报告</td><td>这是第 <strong>12</strong> 份。前 11 份的结论都是「去打电话」</td></tr>
+        <tr><td>投广告 / 拉新</td><td>漏桶：85 注册 → 3 个产出物 → 0 个留下</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="sec-num">现在</span>
+    <div><h2>今天就做的一件事</h2></div>
+  </div>
+  <div class="col">
+    <div class="note">
+      <span class="lbl">不是明天，不是「等我先把 X 修好」</span>
+      <p>把那封已经躺了 21 天的邮件发给 <span class="mono">yaroslava.b@richkey.ae</span>，三个问题换成：</p>
+      <p style="margin-top:12px"><strong>1.</strong> 你还记得第一次觉得「得找个工具查这个」是什么时候吗？当时碰到了什么事？<br>
+      <strong>2.</strong> 在用我们之前，你是怎么查这些数据的？<br>
+      <strong>3.</strong> 7 月 10 号那天你刚好在忙什么，才决定当场就订了？</p>
+      <p style="margin-top:12px; color:var(--muted); font-size:14px">她的订阅 8/17 刚断、8/14 还在看价格 —— 这个窗口一周之内会关上。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>配套三本工作手册：<strong>妈妈测试</strong>（怎么问才不被骗）· <strong>需求侧销售 101</strong>（怎么看懂他为什么买）· <strong>大满贯提案</strong>（怎么包成没法拒绝的报价）。<br>
+  数据来源：生产库实查 2026-08-18，已剔除全部内部账号。</p>
+</footer>
+
+</div>
