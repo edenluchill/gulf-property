@@ -77,12 +77,14 @@ const PLAN_RANK: Record<string, number> = { explore: 0, rookie: 1, agent: 2, fou
 
 /**
  * 免绑卡试用的积分池默认值(与套餐自身的 credits_month 解耦,见 planFor)。
- * 单条试用可以在 lt_subscriptions.trial_credits 上覆盖 —— 已验证开发商拿 600
- * (楼书解析 40 分/份,200 分只够 5 份,而我们最想要的就是他们把楼盘全传上来)。
+ * 单条试用可以在 lt_subscriptions.trial_credits 上覆盖(后台「赠 Pro 30 天」就这么做)。
+ *
+ * 🪦 2026-08-17:原来这里还有 DEV_TRIAL_CREDITS=600 / DEV_TRIAL_DAYS=30,
+ * 给「已验证开发商」用的。整条开发商验证链路已删(理由见 routes/billing.ts 的墓碑
+ * 注释:那道审批守的门是假的,唯一通过的人交付了 0 个楼盘)。要给谁加长试用,
+ * 走后台通用的「赠 Pro 30 天」(1200 分),见 services/adminGrant.ts。
  */
 export const TRIAL_CREDITS = Number(process.env.FREE_TRIAL_CREDITS || 200)
-export const DEV_TRIAL_CREDITS = Number(process.env.DEV_TRIAL_CREDITS || 600)
-export const DEV_TRIAL_DAYS = Number(process.env.DEV_TRIAL_DAYS || 30)
 
 /**
  * 试用期的免费通话额度(call units)—— **刻意与套餐解耦**,见 TRIAL_CALL_UNITS。

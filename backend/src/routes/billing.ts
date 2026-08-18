@@ -20,7 +20,7 @@ import pool from '../db/pool'
 import { requireAuth, requireAdmin } from '../middleware/auth'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { ensureAgent } from '../luna-tour/session-builder'
-import { creditBalance, featureCatalog, resetCreditsOnConversion, checkCallQuota, DEV_TRIAL_CREDITS, DEV_TRIAL_DAYS, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
+import { creditBalance, featureCatalog, resetCreditsOnConversion, checkCallQuota, VIDEO_UNIT_WEIGHT, CALL_UNITS_PER_CREDIT } from '../luna-tour/credits'
 import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services/freeTrial'
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
@@ -399,135 +399,29 @@ router.post('/trial/start', requireAuth, async (req: Request, res: Response) => 
 //   开发商验证后 = 30 天 / 600 分(owner 在 admin 一键批;楼书 40 分/份 → 600≈15 份)
 // ============================================================
 
-// POST /developer/verify-request { company, website?, note? } — 申请开发商验证
-router.post('/developer/verify-request', requireAuth, async (req: Request, res: Response) => {
-  const agent = await currentAgent(req)
-  if (!agent) return res.status(401).json({ success: false, error: 'Auth required' })
-
-  const company = String(req.body?.company || '').trim().slice(0, 200)
-  const website = String(req.body?.website || '').trim().slice(0, 300) || null
-  const note = String(req.body?.note || '').trim().slice(0, 1000) || null
-  if (!company) return res.status(400).json({ success: false, error: '请填写公司名称' })
-
-  try {
-    const userId = req.user?.id || req.ctx?.userId || null
-    await pool.query(
-      `INSERT INTO developer_verifications (agent_id, user_id, email, company, website, note, status)
-         VALUES ($1,$2,$3,$4,$5,$6,'pending')
-       ON CONFLICT (agent_id) DO UPDATE
-         SET company = EXCLUDED.company, website = EXCLUDED.website, note = EXCLUDED.note,
-             status = 'pending', decided_by = NULL, decided_at = NULL, created_at = now()`,
-      [agent.id, userId, agent.email, company, website, note]
-    )
-    await sendAlertEmail(
-      `开发商验证申请:${company}`,
-      `${agent.email}(${company})申请开发商验证。网站:${website || '未填'}\n说明:${note || '无'}\n\n去 /admin/analytics 的「开发商验证」审批。`
-    ).catch(() => { /* best-effort */ })
-    res.json({ success: true })
-  } catch (err) {
-    console.error('[billing] developer verify-request failed:', err)
-    res.status(500).json({ success: false, error: '提交失败,请重试' })
-  }
-})
-
-// GET /admin/developer-verifications — 待审列表
-router.get('/admin/developer-verifications', requireAdmin, async (_req: Request, res: Response) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT v.id, v.agent_id, v.email, v.company, v.website, v.note, v.status,
-              v.decided_by, v.decided_at, v.created_at,
-              a.display_name, a.developer_verified_at,
-              s.current_period_end AS trial_ends_at, s.trial_credits
-         FROM developer_verifications v
-         LEFT JOIN lt_agents a ON a.id = v.agent_id
-         LEFT JOIN lt_subscriptions s
-           ON s.agent_id = v.agent_id AND s.source = 'free_trial' AND s.status = 'trialing'
-        ORDER BY (v.status = 'pending') DESC, v.created_at DESC
-        LIMIT 200`
-    )
-    res.json({ success: true, verifications: rows })
-  } catch (err) {
-    console.error('[billing] developer-verifications list failed:', err)
-    res.status(500).json({ success: false })
-  }
-})
-
-// POST /admin/developer-verifications/:id/decide { action: 'approve'|'reject' }
-// approve → 发一条**全新的** 30 天 / 600 分试用(从审批日起算,语义干净),并落 developer 角色
-router.post('/admin/developer-verifications/:id/decide', requireAdmin, async (req: Request, res: Response) => {
-  const id = Number(req.params.id)
-  const action = String(req.body?.action || '')
-  if (!Number.isFinite(id) || !['approve', 'reject'].includes(action)) {
-    return res.status(400).json({ success: false, error: 'bad request' })
-  }
-  const decidedBy = (req.user?.email as string) || 'admin'
-
-  try {
-    const v = await pool.query<{ agent_id: string; user_id: string | null; email: string; company: string }>(
-      `SELECT agent_id, user_id, email, company FROM developer_verifications WHERE id = $1`,
-      [id]
-    )
-    if (!v.rows[0]) return res.status(404).json({ success: false, error: 'not found' })
-    const { agent_id: agentId, user_id: userId, email, company } = v.rows[0]
-
-    await pool.query(
-      `UPDATE developer_verifications SET status = $2, decided_by = $3, decided_at = now() WHERE id = $1`,
-      [id, action === 'approve' ? 'approved' : 'rejected', decidedBy]
-    )
-
-    if (action === 'reject') {
-      // 拒绝不动他现有的 7 天自助试用 —— 他仍然是个可能付费的用户,别把人赶走
-      return res.json({ success: true, status: 'rejected' })
-    }
-
-    // ── 通过 ────────────────────────────────────────────────
-    const endsAt = new Date(Date.now() + DEV_TRIAL_DAYS * 86400_000).toISOString()
-    // 换发新试用行:旧的 7 天/200 分行删掉,新行 created_at=now → 用量从今天重新算
-    // (usedFor 按 trialStart 累计流水,不按自然月)
-    await pool.query(`DELETE FROM lt_subscriptions WHERE agent_id = $1 AND source = 'free_trial'`, [agentId])
-    await pool.query(
-      `INSERT INTO lt_subscriptions (agent_id, plan_id, status, source, current_period_end, trial_credits)
-         VALUES ($1, $2, 'trialing', 'free_trial', $3, $4)`,
-      [agentId, TRIAL_PLAN, endsAt, DEV_TRIAL_CREDITS]
-    )
-    await pool.query(
-      `UPDATE lt_agents SET developer_verified_at = now(),
-              free_trial_started_at = COALESCE(free_trial_started_at, now())
-        WHERE id = $1`,
-      [agentId]
-    )
-
-    // role=developer 是 can-upload 的前提(agents.ts:168)—— 没有它,验证过的开发商
-    // 仍然传不了楼书。按 user_id(主键)upsert;没有 user_id 时退回按 email 更新。
-    if (userId) {
-      await pool.query(
-        `INSERT INTO user_profiles (user_id, email, role, role_chosen_at)
-           VALUES ($1, $2, 'developer', now())
-         ON CONFLICT (user_id) DO UPDATE
-           SET role = 'developer', role_chosen_at = now(), updated_at = now()`,
-        [userId, email]
-      )
-    } else {
-      await pool.query(
-        `UPDATE user_profiles SET role = 'developer', updated_at = now() WHERE lower(email) = lower($1)`,
-        [email]
-      )
-    }
-
-    await autoApprovePaid(email, company, 'developer')
-    await logPlanChange({
-      agentId, agentEmail: email, action: 'developer_verified',
-      fromPlan: 'explore', toPlan: TRIAL_PLAN, fromStatus: 'none', toStatus: 'trialing',
-      metadata: { company, days: DEV_TRIAL_DAYS, credits: DEV_TRIAL_CREDITS, by: decidedBy },
-    })
-    clearAgentGate()
-
-    res.json({ success: true, status: 'approved', trial: { endsAt, days: DEV_TRIAL_DAYS, credits: DEV_TRIAL_CREDITS } })
-  } catch (err) {
-    console.error('[billing] developer verify decide failed:', err)
-    res.status(500).json({ success: false, error: '操作失败' })
-  }
-})
+// ============================================================
+// 🪦 开发商验证链路已删除 (2026-08-17)
+//
+// 原来这里有三个端点:POST /developer/verify-request(用户提交公司名/官网)、
+// GET /admin/developer-verifications(待审列表)、POST .../decide(批准发 30 天/600 分)。
+//
+// 删的理由是逐条查出来的,不是嫌它麻烦:
+//  · **徽章 0 价值** —— `developer_verified_at` 全站没有任何一处渲染成标记。
+//  · **它守的门是假的** —— 上传楼书看的是 `canManageProjects`:role='developer'
+//    + 生效订阅。role 在 /choose-role 自助点一下就有(库里 23 人),**验证根本不是
+//    必要条件**。见 middleware/requireUploader.ts。
+//  · **实测 ROI = 0** —— 全库唯一通过验证的开发商(graceww1110 / ONE Development)
+//    拿了 30 天 + 600 积分,**交付了 0 个楼盘**。55 个楼盘里 51 个是我们自己灌的,
+//    3 个合伙人传的,1 个试用用户传的。
+//  · **和已有功能重复** —— 「给某人加长试用」后台早就有通用的「赠 Pro 30 天」
+//    按钮(1200 积分,比这条链路的 600 更慷慨),走 services/adminGrant.ts。
+//
+// 要给开发商特殊待遇,用那个按钮。等真的有开发商在传楼书了(供给是真的了),
+// 再谈「已验证开发商」这种信任标记 —— 那时候它才有东西可挂。
+//
+// 表 `developer_verifications`(1 行历史)和列 `lt_agents.developer_verified_at`
+// **故意保留**:删掉它们只是为了删而删,留着不花钱,也是这段历史的唯一记录。
+// ============================================================
 
 // ============================================================
 // POST /portal — 管理已有订阅(改套餐/取消/换卡/发票)
@@ -666,16 +560,6 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
         : null,
     }
 
-    // 开发商验证状态(前端据此展示「申请验证 → 30 天/600 分」入口或"审核中"）
-    const dv = await pool.query<{ status: string }>(
-      `SELECT status FROM developer_verifications WHERE agent_id = $1`,
-      [agent.id]
-    )
-    const developer = {
-      verified: !!ftRow.rows[0]?.developer_verified_at,
-      verification: dv.rows[0]?.status || null,   // null | pending | approved | rejected
-    }
-
     // 通话额度 —— ⚠️ **必须从 checkCallQuota 取,不能从 plan.limits 推**。
     // 试用用户的 plan_id 就是 'agent'(试用给的是 Pro 的功能权限),但他的通话额度
     // 是独立的 TRIAL_CALL_UNITS(120),不是套餐的 1200。前端若按 planId 去
@@ -689,7 +573,6 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       plan: { id: planId, name: planRow.rows[0]?.name || 'Explore', limits },
       status,
       trial,
-      developer,
       role: myRole,
       current_period_end: sub.rows[0]?.current_period_end || null,
       cancel_at_period_end: !!sub.rows[0]?.cancel_at_period_end, // true = 已约定期末取消,期内仍可用

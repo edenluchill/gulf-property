@@ -20,6 +20,8 @@ const OWNER_ACCOUNTS = [
   'admin@yesir.ai',         // owner 另一个账号
   'realtorgptapp@gmail.com', // owner 另一个账号
   'demo-agent@luna.tour',   // 内置 demo 账号(手机号是 +971500000000,派出去打不通)
+  'tours@pinzos.com',       // AI 自建的站内账号(owner 2026-08-17 确认);它做的 tour
+                            // 曾以「外部经纪产出物」的身份混进健康度面板的信号源名单
 ]
 
 /** 合伙人 SHUAI WANG(乙方,见 docs/signed/ 的合伙协议)。 */

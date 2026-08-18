@@ -604,7 +604,7 @@ async function buildSignals(
  * ═══════════════════════════════════════════════════════════════════════════
  */
 export interface Task {
-  kind: 'payment_failed' | 'dev_verify' | 'trial_ending' | 'new_output'
+  kind: 'payment_failed' | 'trial_ending' | 'new_output'
   /** urgent = 钱/别人在等你；opportunity = 唯一的真实信号源，值得主动够上去 */
   tone: 'urgent' | 'opportunity'
   name: string
@@ -705,26 +705,9 @@ async function buildTasks(): Promise<Task[]> {
     })
   }
 
-  // ② 别人在等你：开发商验证。**这是面板上唯一「不点就卡住对方」的东西。**
-  const dv = await pool.query<{
-    id: string; email: string; company: string; website: string | null; display_name: string | null; d: number
-  }>(
-    `SELECT v.id::text, v.email, v.company, v.website, a.display_name,
-            EXTRACT(day FROM now() - v.created_at)::int AS d
-       FROM developer_verifications v
-       LEFT JOIN lt_agents a ON a.id = v.agent_id
-      WHERE v.status = 'pending'
-      ORDER BY v.created_at ASC`
-  )
-  for (const r of dv.rows) {
-    out.push({
-      kind: 'dev_verify', tone: 'urgent',
-      name: r.company || nm(r), email: r.email,
-      title: r.d > 0 ? `申请开发商验证，等了 ${r.d} 天` : '申请开发商验证',
-      detail: r.website || null,
-      action: { label: '批准 30 天 / 600 分', href: '/admin/analytics?tab=devverify', mail: false },
-    })
-  }
+  // ② 原来这里有「开发商验证待审」—— 整条链路已于 2026-08-17 删除
+  //    （那道审批守的门是假的：上传楼书看的是 role='developer'，自助选角色就有；
+  //      唯一通过验证的开发商交付了 0 个楼盘）。见 routes/billing.ts 的墓碑注释。
 
   // ③ 试用快到期，而且**这人真的用过东西** —— 没用过的不提醒：给他发消息
   //    只会提醒他取消。用过的才是有话可聊的。

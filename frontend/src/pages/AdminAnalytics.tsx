@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, BadgeCheck, Wifi, Cpu, HeartPulse } from 'lucide-react'
+import { Loader2, Lock, LogIn, Users, Search as SearchIcon, Building2, Mic, Flame, LayoutDashboard, AlertTriangle, Activity, Heart, Phone, ShieldCheck, Handshake, CreditCard, Sparkles, Crown, Clock, Gift, Wifi, Cpu, HeartPulse } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { isOwnerEmail } from '../lib/config'
 import {
@@ -35,7 +35,6 @@ import OpsTelemetry from '../components/analytics/OpsTelemetry'
 import Health from '../components/analytics/Health'
 import AgentRuns from '../components/analytics/AgentRuns'
 import RevenueShare from '../components/analytics/RevenueShare'
-import DeveloperVerification from '../components/analytics/DeveloperVerification'
 import { fetchActiveAlerts, ActiveAlert } from '../lib/analyticsApi'
 
 const RANGES = [
@@ -76,7 +75,6 @@ const TABS = [
   // 钱:谁付、分多少、能不能进
   { id: 'subscriptions', label: '订阅', Icon: CreditCard, group: 'money' },
   { id: 'revenue', label: '分成对账', Icon: Handshake, group: 'money' },
-  { id: 'devverify', label: '开发商验证', Icon: BadgeCheck, group: 'money' },
   // 系统:机器有没有事 + 花了多少
   { id: 'ops', label: 'AI 成本', Icon: Cpu, group: 'sys' },
   { id: 'perf', label: '性能负载', Icon: Activity, group: 'sys' },
@@ -424,7 +422,6 @@ export default function AdminAnalytics() {
           {tab === 'subscriptions' && <AgentApprovals />}
 
           {/* ── 开发商验证(批准 → 30 天 / 600 积分试用)────────────────── */}
-          {tab === 'devverify' && <DeveloperVerification />}
 
           {/* ── 分成对账 ──────────────────────────────────────────────── */}
           {tab === 'revenue' && <RevenueShare />}

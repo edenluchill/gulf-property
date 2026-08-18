@@ -10,7 +10,6 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Sparkles, ArrowRight } from 'lucide-react'
 import { fetchBillingMe, type BillingMe } from '../lib/billingApi'
-import DeveloperVerifyCard from './DeveloperVerifyCard'
 import TrialClaimCard from './TrialClaimCard'
 
 export default function TrialBanner() {
@@ -23,11 +22,13 @@ export default function TrialBanner() {
 
   if (!me) return null
 
-  // 开发商未验证 → 引导去拿 30 天 / 600 分(与试用条共用这一份 /me,不重复请求)
-  const devCard = <DeveloperVerifyCard me={me} onDone={load} />
+  // 2026-08-17:这里原来还挂着「开发商验证」引导卡,已连同整条链路删除。
+  // 那道人工审批守的东西全是假的 —— 上传楼书要的是 role='developer'(自助选角色就有,
+  // 23 人),不是验证;验证唯一给的是 30 天/600 分,而唯一通过验证的人交付了 0 个楼盘。
+  // 要给谁加长试用,用后台已有的「赠 Pro 30 天」(1200 分,更慷慨)。
   if (!me.trial?.active) {
     // 还没领试用的老用户:经纪台里也要能一键领(不是只有 /agent/plans 那一条路)
-    return <>{devCard}<TrialClaimCard me={me} compact /></>
+    return <TrialClaimCard me={me} compact />
   }
 
   const days = me.trial.daysLeft ?? 0
@@ -38,7 +39,6 @@ export default function TrialBanner() {
 
   return (
     <>
-    {devCard}
     <div
       className={`mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-2.5 text-sm ${
         urgent
