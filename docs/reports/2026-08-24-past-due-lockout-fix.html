@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扣款失败被当成「从没订阅过」—— 18 处收口</title>
+<style>
+:root{
+  --bg:#F6F7F8; --fg:#16191C; --fg2:#454E55; --muted:#71797F;
+  --rule:#DADFE3; --card:#FFFFFF; --card2:#ECEFF1;
+  --bad:#A93226; --bad-bg:#FBEAE7; --good:#1B6349; --good-bg:#E1EFE9;
+  --code-bg:#F0F2F4;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#101315; --fg:#E6EAED; --fg2:#B2BAC1; --muted:#7E888F;
+    --rule:#272E33; --card:#171B1E; --card2:#1E2429;
+    --bad:#E4897A; --bad-bg:#321915; --good:#5FBF9A; --good-bg:#122720;
+    --code-bg:#1A1F23;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--fg);
+  font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:16px; line-height:1.72; -webkit-font-smoothing:antialiased}
+.wrap{max-width:82ch; margin:0 auto; padding:48px 22px 90px}
+h1,h2,h3{line-height:1.25; text-wrap:balance}
+h1{font-size:clamp(28px,4.4vw,40px); margin:0 0 10px; letter-spacing:-.015em}
+.dek{color:var(--fg2); font-size:17px; margin:0 0 6px}
+.meta{color:var(--muted); font-size:13px; margin:0 0 34px;
+  font-family:ui-monospace,Consolas,monospace}
+h2{font-size:23px; margin:44px 0 12px; padding-top:16px; border-top:1px solid var(--rule)}
+h3{font-size:17px; margin:28px 0 8px}
+p{margin:0 0 14px; color:var(--fg2)}
+strong{color:var(--fg); font-weight:650}
+ul,ol{margin:0 0 14px; padding-left:1.2em; color:var(--fg2)}
+li{margin:0 0 6px}
+code{background:var(--code-bg); padding:1.5px 5px; border-radius:3px; font-size:.9em;
+  font-family:ui-monospace,"SF Mono",Consolas,monospace}
+pre{background:var(--card); border:1px solid var(--rule); border-radius:6px; padding:14px 16px;
+  overflow-x:auto; margin:0 0 18px}
+pre code{background:none; padding:0; font-size:13px; line-height:1.6; color:var(--fg2)}
+pre code b{color:var(--bad); font-weight:700}
+.tw{overflow-x:auto; margin:0 0 18px; border:1px solid var(--rule); border-radius:6px}
+table{border-collapse:collapse; width:100%; font-size:14.5px; background:var(--card); min-width:480px}
+th,td{text-align:left; padding:9px 13px; border-bottom:1px solid var(--rule); vertical-align:top}
+thead th{background:var(--card2); font-size:11.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--muted); font-weight:600; white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+td.m{font-family:ui-monospace,Consolas,monospace; font-size:12.5px; white-space:nowrap}
+.tag{display:inline-block; padding:1px 7px; border-radius:9px; font-size:11px; font-weight:650;
+  font-family:ui-monospace,Consolas,monospace; white-space:nowrap}
+.tag.bad{background:var(--bad-bg); color:var(--bad)}
+.tag.good{background:var(--good-bg); color:var(--good)}
+.box{border-left:3px solid var(--bad); background:var(--card2); padding:13px 17px;
+  margin:0 0 18px; border-radius:0 5px 5px 0}
+.box.good{border-left-color:var(--good)}
+.box p:last-child{margin-bottom:0}
+.box .lbl{display:block; font-family:ui-monospace,Consolas,monospace; font-size:10.5px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--bad); margin-bottom:5px}
+.box.good .lbl{color:var(--good)}
+blockquote{margin:20px 0; padding:14px 18px; border-left:3px solid var(--fg);
+  background:var(--card2); border-radius:0 5px 5px 0; font-size:17px; color:var(--fg)}
+blockquote p{color:var(--fg); margin:0}
+footer{margin-top:50px; padding-top:16px; border-top:1px solid var(--rule);
+  color:var(--muted); font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>扣款失败被当成「从没订阅过」</h1>
+<p class="dek">起因是「修 starter 档」。查下来 Starter 那三个 0 是设计不是 bug ——
+真正的缺陷在全站 18 处订阅判断里，而且它已经伤过唯一一个真付过钱的客户。</p>
+<p class="meta">2026-08-24 · 生产库实查 + 代码审计 · 已修复并部署</p>
+
+<h2>1. 先否掉原假设：Starter 的三个 0 是设计</h2>
+
+<p>之前的报告把这个当成事故：</p>
+<pre><code>Starter ($25/月) limits：
+  credits_month:   200
+  reports_month:   10
+  brochures_month: 5
+  <b>sessions_month:   0   ← 不能建 tour</b>
+  <b>live_tours_month: 0   ← 不能带看</b>
+  <b>call_units_month: 0   ← 不能用语音</b></code></pre>
+
+<p>但定价页（<code>PricingPage.tsx</code> + 生产截图核对）里 Starter 卖的从来就不是这三样：</p>
+
+<div class="tw"><table>
+<thead><tr><th>Starter $25 明写包含</th><th>Pro $49 才有</th></tr></thead>
+<tbody>
+<tr><td>地图与市场数据不限时（260+ 区域 DLD 成交/租金/收益率）</td><td>实时海外带看</td></tr>
+<tr><td>客户 CRM · 档案 / 热度评分 / 时间线</td><td>应用内语音</td></tr>
+<tr><td>买家意向报告</td><td>Luna AI 智能导览</td></tr>
+<tr><td>AI 楼书解析 · Sales Offer 报价单 · 品牌报告页</td><td>带看意向报告 · Lead 优先推送</td></tr>
+</tbody></table></div>
+
+<div class="box good">
+<span class="lbl">结论</span>
+<p>三个 0 = <strong>Pro 的差异化，是有意的</strong>。把它们改成非 0 等于取消 Pro 的存在理由。
+<strong>不改。</strong></p>
+</div>
+
+<h2>2. 真正的缺陷：<code>past_due</code> 全站被判成「没订阅」</h2>
+
+<p>全站 18 处订阅判断写的是 <code>status IN ('active','trialing')</code>，
+<strong><code>past_due</code> 不在里面</strong>。</p>
+
+<p><code>past_due</code> 的语义是：<strong>卡扣失败，但 Stripe 仍在按 dunning 计划重试</strong>
+（默认约 2 周，重试完才转 <code>unpaid</code> / <code>canceled</code>）。
+处在这个状态的人是<strong>正在试图付钱的客户</strong>。</p>
+
+<p>而我们的判定后果：</p>
+
+<div class="tw"><table>
+<thead><tr><th>位置</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td class="m">mapMeter.ts</td><td><strong>地图当场锁死</strong>，且返回 <code>requiresPlan: true</code> → 前端提示他「去选套餐」</td></tr>
+<tr><td class="m">credits.ts <code>planFor()</code></td><td>掉回 <code>explore</code>（0 积分）→ 所有付费功能失效</td></tr>
+<tr><td class="m">requireUploader.ts</td><td>楼书上传权被没收</td></tr>
+<tr><td class="m">freeTrial.ts</td><td>「已有订阅」判定失效 → <strong>付费用户可以去领免费试用</strong></td></tr>
+<tr><td class="m">billing.ts <code>teamSubOf()</code></td><td>团队席位管理失效</td></tr>
+<tr><td class="m">PricingPage.tsx</td><td><code>hasPlan=false</code> → <strong>给付费客户看「7 天免费试用」</strong></td></tr>
+<tr><td class="m">agents.ts / adminBizQueries</td><td>后台把付费客户显示成「从没付费」</td></tr>
+</tbody></table></div>
+
+<h3>这正是 RichKey 那一单的死法</h3>
+
+<div class="tw"><table>
+<thead><tr><th>日期</th><th>事</th></tr></thead>
+<tbody>
+<tr><td class="m">07-10 11:41</td><td>注册后 3 分 25 秒付钱（Starter $25）</td></tr>
+<tr><td class="m">07-18</td><td><strong>已付费状态下去点了「免费试用」</strong> ← <code>freeTrial.ts</code> 没拦</td></tr>
+<tr><td class="m">07-27</td><td>撞地图额度墙 ×2 → 立刻去看定价页</td></tr>
+<tr><td class="m">07-28</td><td>扣款失败 → <code>past_due</code> → <strong>全站判成免费用户</strong></td></tr>
+<tr><td class="m">之后</td><td>反复看定价页十几次，<strong>再没买过</strong></td></tr>
+</tbody></table></div>
+
+<blockquote><p>我们把唯一一个真付过钱的客户，在他卡扣失败的当天，锁在了门外，
+还提示他「去选套餐」。</p></blockquote>
+
+<div class="box">
+<span class="lbl">而且这个坑记过一次</span>
+<p>记忆条 <code>subscription-past-due-hidden</code> 早就写过「查订阅必带 past_due」。
+之后仍然散点复发了 <strong>11 处后端 + 7 处前端</strong>。
+<strong>写在记忆里不等于收口 —— 只有单一真源能真正防住。</strong></p>
+</div>
+
+<h2>3. 修法：收口，不逐个打补丁</h2>
+
+<p>新建两个同名单一真源文件：</p>
+
+<pre><code>backend/src/lib/subscriptionStatus.ts
+  ENTITLED_STATUSES = ['active','trialing','past_due']
+  ENTITLED_SQL      = "('active','trialing','past_due')"   // 直接插进 SQL
+  isEntitled(status)
+
+frontend/src/lib/subscriptionStatus.ts
+  isEntitled(status)        // 还有没有权益
+  needsPaymentFix(status)   // 钱出问题了，UI 要显示「换卡」</code></pre>
+
+<ul>
+<li><strong>后端 11 处</strong> SQL 改用 <code>${ENTITLED_SQL}</code></li>
+<li><strong>前端 7 处</strong> 改用 <code>isEntitled()</code></li>
+<li><strong>定价页新增 <code>past_due</code> 专用 CTA</strong>：「更新支付方式」→ Stripe 客户门户，
+优先级排在试用/订阅<strong>之前</strong>。给一个已经在付钱的人看「免费试用」，等于告诉他他不是客户。</li>
+<li>新 i18n 键 <code>updatePaymentMethod</code> × 5 语言，<code>i18n-key-check</code> 通过（2261 键）</li>
+</ul>
+
+<h3>有意不含的两个状态</h3>
+<div class="tw"><table>
+<thead><tr><th>状态</th><th>为什么不给权益</th></tr></thead>
+<tbody>
+<tr><td class="m">unpaid</td><td>Stripe 已经重试完并放弃了。到这一步才该真正断权益</td></tr>
+<tr><td class="m">incomplete</td><td>首次付款从没成功过（3DS 没走完等），压根没成为过客户</td></tr>
+</tbody></table></div>
+
+<h2>4. 一个 tsc 抓不出来的坑</h2>
+
+<div class="box">
+<span class="lbl">差点栽进去</span>
+<p><code>${ENTITLED_SQL}</code> <strong>只在模板字符串（反引号）里才会插值</strong>。
+如果那条 SQL 是用单引号写的，<code>${...}</code> 会<strong>静默变成字面量</strong>，
+查询条件变成 <code>status IN $&#123;ENTITLED_SQL&#125;</code> —— 语法错误要到<strong>运行时</strong>才炸，
+<strong>tsc 完全查不出来</strong>。</p>
+<p>所以 11 处替换后逐个核对了包裹引号类型，并在生产容器里真跑了一遍那条 SQL 验证插值结果。</p>
+</div>
+
+<h2>5. 验证（生产容器内实跑）</h2>
+
+<pre><code>ENTITLED_SQL      = ('active','trialing','past_due')
+isEntitled(past_due) = true
+isEntitled(unpaid)   = false
+isEntitled(canceled) = false
+
+生效中的订阅（新口径）: [{"status":"active","n":2},{"status":"trialing","n":3}]
+当前 past_due/unpaid/incomplete: 0</code></pre>
+
+<ul>
+<li>API <code>/health</code> = 200；前端已构建并部署（<code>wrangler pages deploy</code>）</li>
+<li><code>/pricing</code> 无头巡检：价格档位正常渲染，控制台零错误</li>
+</ul>
+
+<div class="box good">
+<span class="lbl">诚实说明</span>
+<p><strong>这个修复救不回 Yaroslava</strong> —— 她的订阅 8/17 已经走完整个周期变成 <code>canceled</code>，
+按新口径也不该有权益（这是对的）。<br>
+<strong>它防的是下一个卡扣失败的客户。</strong>当前库里 <code>past_due</code> 人数为 0，
+所以这次修复没有立即可见的收益 —— 它是把一个已经造成过一次损失的陷阱拆掉。</p>
+</div>
+
+<h2>6. 仍未处理</h2>
+<ul>
+<li><code>/api/usage/map-heartbeat</code> network 失败 22 次 / 4 人（8-11 报告第 5 条，一直没动）</li>
+<li><code>/api/me/profile</code> network 失败仍偶发（8/17 还有）—— 但已不再导致踢人（<code>0890de9</code> 已修那条路径）</li>
+</ul>
+
+<footer>
+commit：<code>fix(billing): 扣款失败不再当成「从没订阅过」—— 18 处收口到单一真源</code><br>
+相关记忆条：<code>subscription-past-due-hidden</code> · <code>richkey-the-only-purchase-jtbd</code> · <code>stale-reports-mislead-analysis</code>
+</footer>
+
+</div>
+</body>
+</html>
