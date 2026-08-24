@@ -11,6 +11,7 @@ import { isOwnerEmail } from '../middleware/requireOwner'
 // 与扣费同源:试用额度的兜底值 / 无限白名单判定,都必须用 credits.ts 那一套,
 // 不能在这里另写一份 —— 后台显示的数字和真正扣费的数字必须是同一个真相。
 import { TRIAL_CREDITS, emailUnlimited } from '../luna-tour/credits'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 // ── 订阅客户(B 端:谁订阅了我们的 SaaS)──────────────────────────────
 export interface Subscriber {
@@ -68,7 +69,7 @@ export async function reconcilePaidApprovals(): Promise<number> {
           SELECT 1 FROM lt_agents la
             JOIN lt_subscriptions s ON s.agent_id = la.id
            WHERE lower(la.email) = lower(agents.email)
-             AND s.status IN ('active','trialing')
+             AND s.status IN ${ENTITLED_SQL}
         )`
   )
   return r.rowCount ?? 0

@@ -16,6 +16,7 @@
  * 结果取决于线程时序。占位后任何校验失败**必须把戳退回去**,否则他占了名额却没拿到试用。
  */
 import pool from '../db/pool'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 // 30 天 / 1200 分 = 专业版满月额,给的是完整一个月的 Pro 体验。
 // 发 agent(Pro)档而不是 rookie:实时带看 / Luna 导览的 minPlan 就是 agent,
@@ -58,7 +59,7 @@ export async function grantOneTimeTrial(agentId: string, email: string, actor: s
     // 已有真实付费订阅 / 存量永久 comp → 不需要赠送,更不能覆盖人家的订阅。
     const live = await pool.query(
       `SELECT 1 FROM lt_subscriptions
-        WHERE agent_id = $1 AND status IN ('active','trialing') AND source <> 'free_trial'
+        WHERE agent_id = $1 AND status IN ${ENTITLED_SQL} AND source <> 'free_trial'
         LIMIT 1`,
       [agentId]
     )

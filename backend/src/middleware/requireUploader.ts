@@ -18,6 +18,7 @@ import { Request, Response, NextFunction, RequestHandler } from 'express'
 import pool from '../db/pool'
 import { isAdminEmail } from '../lib/adminEmails'
 import { isOwnerEmail } from './requireOwner'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 /** 该 email 是否可管理项目/楼书/任务。email 空 → false。白名单查询用 lower(email)。 */
 export async function canManageProjects(email: string): Promise<boolean> {
@@ -38,7 +39,7 @@ export async function canManageProjects(email: string): Promise<boolean> {
          JOIN lt_agents la ON lower(la.email) = $1
          JOIN lt_subscriptions s
            ON s.agent_id = COALESCE(la.billing_agent_id, la.id)
-          AND s.status IN ('active','trialing')
+          AND s.status IN ${ENTITLED_SQL}
           AND (s.source <> 'free_trial' OR s.current_period_end > now())
         WHERE lower(up.email) = $1 AND up.role = 'developer'
         LIMIT 1`,

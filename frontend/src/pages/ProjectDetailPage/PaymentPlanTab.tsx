@@ -13,6 +13,7 @@ import { normalizePaymentPlan } from '../../lib/paymentPlan'
 import MoneyInput from '../../components/MoneyInput'
 import { fetchBillingMe, fetchMyRole, type BillingMe, type UserRole } from '../../lib/billingApi'
 import SalesOfferDialog from './SalesOfferDialog'
+import { isEntitled } from '../../lib/subscriptionStatus'
 
 interface PaymentPlanTabProps {
   paymentPlan: PaymentPlan[]
@@ -62,7 +63,7 @@ export function PaymentPlanTab({ paymentPlan, referencePrice, units = [], projec
   const canOffer = !!billing && (
     billing.credits?.balance === -1 ||
     (['rookie', 'agent', 'founder', 'developer'].includes(billing.plan?.id || '') &&
-      ['active', 'trialing'].includes(billing.status))
+      isEntitled(billing.status))
   )
   /** null = 还在查(弹窗转圈),true/false = 已确定 */
   const entitled: boolean | null = billingLoaded ? canOffer : null

@@ -28,6 +28,7 @@ import AgentCardEditor from '../../components/AgentCardEditor'
 import TrialClaimCard from '../../components/TrialClaimCard'
 import MyActivity from '../../components/profile/MyActivity'
 import type { ProfileShellContext } from './ProfileShell'
+import { isEntitled } from '../../lib/subscriptionStatus'
 
 interface AgentCard {
   display_name?: string | null
@@ -83,7 +84,7 @@ export default function ProfileHome() {
   // 订阅展示(me 为空 = 拉取失败,当 Explore 免费档展示)
   const planName = me?.plan?.name || 'Explore'
   const status = me?.status || 'none'
-  const isPaid = status === 'active' || status === 'trialing'
+  const isPaid = isEntitled(status)
   const cMonth = me?.credits?.month ?? 0
   const cBalance = me?.credits?.balance ?? 0
   const cUsed = me?.credits?.used ?? 0

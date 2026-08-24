@@ -25,6 +25,7 @@ import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { isAdminEmail } from '../lib/adminEmails'
 import { isOwnerEmail } from './requireOwner'
 import { internalVisitorIds } from '../services/analyticsQueries'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 // 注意别写 `Number(env) || 10`:0 是 falsy,会让「额度设 0」悄悄变回 10。
 const LIMIT_MIN = (() => {
@@ -214,7 +215,7 @@ async function agentGateFor(userId: string, email: string | null): Promise<Agent
       // ⚠️ 只对 free_trial 判过期:后台 comp 授予(agents.ts,100 年期)也没有 stripe id。
       const s = await pool.query(
         `SELECT 1 FROM lt_subscriptions
-          WHERE agent_id = $1 AND status IN ('active','trialing')
+          WHERE agent_id = $1 AND status IN ${ENTITLED_SQL}
             AND (source <> 'free_trial' OR current_period_end > now())
           LIMIT 1`,
         [billingId]

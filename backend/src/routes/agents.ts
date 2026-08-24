@@ -13,6 +13,7 @@ import { requireOwner, isOwnerEmail } from '../middleware/requireOwner'
 import { canManageProjects } from '../middleware/requireUploader'
 import { ensureAgent } from '../luna-tour/session-builder'
 import { grantOneTimeTrial, revokeGrant } from '../services/adminGrant'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 const router = Router()
 
@@ -76,7 +77,7 @@ router.get('/', optionalAuth, requireOwner, async (_req: Request, res: Response)
          LEFT JOIN LATERAL (
            SELECT plan_id, status, stripe_subscription_id, current_period_end
              FROM lt_subscriptions
-            WHERE agent_id = la.id AND status IN ('active','trialing')
+            WHERE agent_id = la.id AND status IN ${ENTITLED_SQL}
             ORDER BY created_at DESC LIMIT 1
          ) s ON true
          LEFT JOIN lt_subscription_plans p ON p.id = COALESCE(s.plan_id, 'explore')

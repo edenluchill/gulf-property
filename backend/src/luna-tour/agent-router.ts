@@ -31,6 +31,7 @@ import { supabaseAdmin, isSupabaseConfigured } from '../lib/supabase'
 import { normLang } from '../lib/lang'
 import { checkCredits, spend, creditError, creditBalance, featureCatalog } from './credits'
 import { coachProfile, saveProfile, loadProfile, profileToOneLiner, type ExtractedProfile } from './client-profile-coach'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 const router = Router()
 
@@ -758,7 +759,7 @@ router.post('/certificate', async (req: Request, res: Response) => {
     const a = await pool.query<{ display_name: string | null }>('SELECT display_name FROM lt_agents WHERE id=$1', [agentId])
     const name = (a.rows[0]?.display_name || 'Agent').trim()
     const sub = await pool.query<{ plan_id: string }>(
-      `SELECT plan_id FROM lt_subscriptions WHERE agent_id=$1 AND status IN ('active','trialing') ORDER BY created_at DESC LIMIT 1`,
+      `SELECT plan_id FROM lt_subscriptions WHERE agent_id=$1 AND status IN ${ENTITLED_SQL} ORDER BY created_at DESC LIMIT 1`,
       [agentId]
     )
     const plan = sub.rows[0]?.plan_id || 'rookie'

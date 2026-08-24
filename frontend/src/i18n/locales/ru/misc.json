@@ -536,5 +536,6 @@
     "goExplore": "Открыть карту →",
     "contacted": "Запрошены контакты",
     "notContacted": "Нет обращения"
-  }
+  },
+  "updatePaymentMethod": "Обновить способ оплаты"
 }

@@ -24,6 +24,7 @@ import { checkCredits, spend, creditError } from './credits'
 import { getMarketEvidence } from './evidence'
 import { notifyAgentOfIntent } from './notify-agent'
 import { getProjectInsights, getProjectTransactions } from '../services/projectInsights'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 const router = Router()
 
@@ -732,7 +733,7 @@ router.get('/public/payplan/:code', async (req: Request, res: Response) => {
         const billingId = s.agent_billing_id || s.agent_id
         const sub = await pool.query<{ plan_id: string }>(
           `SELECT plan_id FROM lt_subscriptions
-             WHERE agent_id = $1 AND status IN ('active','trialing')
+             WHERE agent_id = $1 AND status IN ${ENTITLED_SQL}
              ORDER BY created_at DESC LIMIT 1`,
           [billingId]
         )

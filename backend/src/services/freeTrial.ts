@@ -14,6 +14,7 @@
  * 领取资格(占了位却没拿到试用)。
  */
 import pool from '../db/pool'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 export const TRIAL_DAYS = Number(process.env.FREE_TRIAL_DAYS || 7)
 // 试用发 Pro(agent)档的功能权限;积分不吃 Pro 的 1200,由 credits.planFor 锁在 TRIAL_CREDITS。
@@ -53,7 +54,7 @@ export async function claimFreeTrial(agentId: string, billingAgentId = agentId):
     // 已有生效订阅(自己的 / 团队席位的 / 后台 comp 授予的)→ 不需要试用
     const live = await pool.query(
       `SELECT 1 FROM lt_subscriptions
-        WHERE agent_id = $1 AND status IN ('active','trialing')
+        WHERE agent_id = $1 AND status IN ${ENTITLED_SQL}
           AND (source <> 'free_trial' OR current_period_end > now())
         LIMIT 1`,
       [billingAgentId]

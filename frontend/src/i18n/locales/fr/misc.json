@@ -535,5 +535,6 @@
     "goExplore": "Explorer la carte →",
     "contacted": "Coordonnées demandées",
     "notContacted": "Non contacté"
-  }
+  },
+  "updatePaymentMethod": "Mettre à jour le moyen de paiement"
 }

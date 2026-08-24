@@ -535,5 +535,6 @@
     "goExplore": "استكشف الخريطة →",
     "contacted": "طُلبت بيانات التواصل",
     "notContacted": "لم يتم التواصل"
-  }
+  },
+  "updatePaymentMethod": "تحديث طريقة الدفع"
 }

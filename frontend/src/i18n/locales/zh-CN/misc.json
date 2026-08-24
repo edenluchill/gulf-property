@@ -534,5 +534,6 @@
     "goExplore": "去地图逛逛 →",
     "contacted": "已要联系方式",
     "notContacted": "未联系"
-  }
+  },
+  "updatePaymentMethod": "更新支付方式"
 }

@@ -25,6 +25,7 @@ import { claimFreeTrial, TRIAL_DAYS, TRIAL_PLAN, TRIAL_ROLES } from '../services
 import { clearAgentGate } from '../middleware/mapMeter'
 import { sendAlertEmail } from '../services/notify'
 import * as referral from '../services/referral'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 const router = Router()
 
@@ -601,7 +602,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 async function teamSubOf(agentId: string): Promise<{ subId: string; extraSeats: number; seats: number; planId: string } | null> {
   const { rows } = await pool.query<{ stripe_subscription_id: string | null; extra_seats: number; plan_id: string }>(
     `SELECT stripe_subscription_id, extra_seats, plan_id FROM lt_subscriptions
-      WHERE agent_id = $1 AND plan_id IN ('founder','developer') AND status IN ('active','trialing')
+      WHERE agent_id = $1 AND plan_id IN ('founder','developer') AND status IN ${ENTITLED_SQL}
       ORDER BY created_at DESC LIMIT 1`,
     [agentId]
   )
@@ -689,7 +690,7 @@ router.post('/team/invite', requireAuth, async (req: Request, res: Response) => 
       return res.status(409).json({ success: false, error: '对方已在其他团队中' })
     }
     const own = await pool.query(
-      `SELECT 1 FROM lt_subscriptions WHERE agent_id = $1 AND status IN ('active','trialing') LIMIT 1`,
+      `SELECT 1 FROM lt_subscriptions WHERE agent_id = $1 AND status IN ${ENTITLED_SQL} LIMIT 1`,
       [target]
     )
     if (own.rows.length) {

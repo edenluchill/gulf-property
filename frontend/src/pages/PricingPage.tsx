@@ -11,9 +11,10 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
 import { ArrowRight, ArrowLeft, Check, Loader2, Flame, Lock, Briefcase, Gift } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchPlans, fetchPromo, fetchFeatures, fetchBillingMe, startCheckout, startFreeTrial, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo, type BillingMe, type PaidPlanId, type TrialRole } from '../lib/billingApi'
+import { fetchPlans, fetchPromo, fetchFeatures, fetchBillingMe, openPortal, startCheckout, startFreeTrial, type BillingPlan, type BillingInterval, type Promo, type FeaturesInfo, type BillingMe, type PaidPlanId, type TrialRole } from '../lib/billingApi'
 import { useResetOnBFCache } from '../hooks/useResetOnBFCache'
 import { trackEvent } from '../lib/track'
+import { isEntitled, needsPaymentFix } from '../lib/subscriptionStatus'
 
 const ACCENT = '#00E0B8'
 const GOLD = '#E8C37E'
@@ -112,7 +113,7 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   // 主 CTA = 零摩擦试用(不跳 Stripe、不收卡);「直接订阅」降级为次要链接。
   // 已用过试用 / 已有生效套餐 → 主 CTA 回落成「立即订阅」。
   const ROLE_BY_PLAN: Record<string, TrialRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
-  const hasPlan = me?.status === 'active' || me?.status === 'trialing'
+  const hasPlan = isEntitled(me?.status)
   const canTrial = !me || (!me.trial?.used && !hasPlan)  // 未登录也按"能试用"展示(点了先去登录)
 
   // 未登录 → 带 returnTo 去登录,登录完回到**这一页**继续(原来跳 /agent 要绕好几跳)
@@ -152,9 +153,23 @@ export default function PricingPage({ agentOnboarding = false, variant }: {
   // 公共 /pricing 没有那张主卡,卡片 CTA 仍然主推试用。
   const heroTrial = agentOnboarding && canTrial
 
-  /** 主 CTA:能试用且没有主卡 → 试用;否则 → 订阅。 */
-  const ctaFor = (planId: PaidPlanId) => canTrial && !heroTrial
-    ? { label: t('misc:tryFreeFor7'), onClick: () => beginTrial(planId) }
+  /**
+   * 主 CTA:能试用且没有主卡 → 试用;否则 → 订阅。
+   *
+   * 🔴 **`past_due` 单独一档,必须排在最前。** 这种人**已经是付费客户**,只是卡扣失败、
+   *    Stripe 还在重试。给他看「免费试用」或「立即订阅」都是在告诉他「你不是我们的客户」——
+   *    2026-07 全站唯一真付过费的客户就是这么走的(扣款失败 → 被当成免费用户 → 反复看
+   *    定价页十几次 → 再没买过)。他要的是**换卡入口**,一步就能修好。
+   */
+  const fixPayment = async () => {
+    trackEvent('plan_select', { plan_id: 'portal', cycle, action: 'fix_payment' })
+    setBusy('rookie')
+    const error = await openPortal()   // 成功则跳转 Stripe 客户门户,不返回
+    if (error) { setErr(error); setBusy(null) }
+  }
+  const ctaFor = (planId: PaidPlanId) =>
+    needsPaymentFix(me?.status) ? { label: t('misc:updatePaymentMethod'), onClick: fixPayment }
+    : canTrial && !heroTrial ? { label: t('misc:tryFreeFor7'), onClick: () => beginTrial(planId) }
     : { label: t('misc:subscribeNow'), onClick: () => subscribe(planId) }
 
   // 软出口:选错身份 → 回选择身份页重选(不直接改成买家)

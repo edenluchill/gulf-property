@@ -22,6 +22,7 @@ import {
   fetchTeam, inviteTeamMember, removeTeamMember, setExtraSeats, setMyRole,
   type BillingMe, type FeaturesInfo, type TeamInfo, type UserRole,
 } from '../../lib/billingApi'
+import { isEntitled } from '../../lib/subscriptionStatus'
 
 // 付费才定身份:套餐 → 角色(webhook 服务端也会落一次,这里是登录态兜底 + 即时生效)
 const ROLE_BY_PLAN: Record<string, UserRole> = { rookie: 'agent', agent: 'agent', founder: 'agency', developer: 'developer' }
@@ -96,7 +97,7 @@ export default function AgentBilling() {
   // 而楼书上传要求 role='developer' → 一付钱就丢上传权限。服务端 webhook 也有同款守卫。
   const roleSetRef = useState(() => ({ done: false }))[0]
   useEffect(() => {
-    if (banner === 'success' && me && !me.role && ['active', 'trialing'].includes(me.status) && !roleSetRef.done) {
+    if (banner === 'success' && me && !me.role && isEntitled(me.status) && !roleSetRef.done) {
       const r = ROLE_BY_PLAN[me.plan?.id || '']
       if (r) {
         roleSetRef.done = true
@@ -140,7 +141,7 @@ export default function AgentBilling() {
 
   const planId = me?.plan.id || 'explore'
   const status = me?.status || 'none'
-  const isPaid = status === 'active' || status === 'trialing'
+  const isPaid = isEntitled(status)
   // 免绑卡试用:有 Pro 权限但**没有 Stripe 订阅** —— 积分不按月刷新,也没有 portal 可管
   const onTrial = !!me?.trial?.active
   // 积分(-1 = 无限/owner)

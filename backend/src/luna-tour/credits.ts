@@ -14,6 +14,7 @@
 import pool from '../db/pool'
 import { isOwnerEmail } from '../middleware/requireOwner'
 import { counter } from '../telemetry'
+import { ENTITLED_SQL } from '../lib/subscriptionStatus'
 
 type PlanId = 'explore' | 'rookie' | 'agent' | 'founder' | 'developer'
 
@@ -128,7 +129,7 @@ interface PlanCfg {
 async function planFor(agentId: string): Promise<PlanCfg> {
   const sub = await pool.query<{ plan_id: string; status: string; source: string; trial_credits: number | null; created_at: Date }>(
     `SELECT plan_id, status, source, trial_credits, created_at FROM lt_subscriptions
-       WHERE agent_id = $1 AND status IN ('active','trialing')
+       WHERE agent_id = $1 AND status IN ${ENTITLED_SQL}
          AND (source <> 'free_trial' OR current_period_end > now())
        ORDER BY created_at DESC LIMIT 1`,
     [agentId]

@@ -23,6 +23,7 @@ import { fetchBillingMe, type BillingMe } from '../../lib/billingApi'
 import { badgeForPlan, badgeTitle, type RoleBadge } from '../../lib/roleBadge'
 import { useScrollChrome } from '../../hooks/useScrollChrome'
 import { Sheet, SheetContent } from '../../components/ui/sheet'
+import { isEntitled } from '../../lib/subscriptionStatus'
 
 // 角色小徽章(与 UserMenu / 角色选择卡同一套颜色/emoji)
 // 双语标签全部走 profile ns 的 t(key);data 层只留翻译 key(不再内嵌 zh/en)。
@@ -181,7 +182,7 @@ export default function ProfileShell() {
     }`
 
   // 使用记录 tab 只在付费(active/trialing)后出现;免费/未订阅不显示。
-  const isPaid = !!me && ['active', 'trialing'].includes(me.status)
+  const isPaid = !!me && isEntitled(me.status)
   /** 付费后在「账户」组末尾追加使用记录 —— 别单开一组,一组一项很怪 */
   const agentGroups: TabGroup[] = isPaid
     ? AGENT_GROUPS.map((g, i) => (i === AGENT_GROUPS.length - 1 ? { ...g, tabs: [...g.tabs, USAGE_TAB] } : g))

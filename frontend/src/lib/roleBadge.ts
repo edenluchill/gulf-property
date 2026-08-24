@@ -4,6 +4,7 @@
  * 展示:UserMenu 常显 + 「我的勋章」弹窗可生成发朋友圈的分享图(canvas)。
  */
 import QRCode from 'qrcode'
+import { isEntitled } from './subscriptionStatus'
 
 /** 勋章名的翻译键。**不能用 planId 代替** —— 两个团队勋章的 planId 都是 'member',
  *  名字却不同(经纪会员 / 开发商会员)。 */
@@ -66,7 +67,7 @@ export const ROLE_BY_PLAN: Record<string, 'agent' | 'agency' | 'developer'> = {
  *  teamMember=true(被邀请进团队的成员)→ 按「认证经纪人」发,不给公司勋章。 */
 export function badgeForPlan(planId: string | undefined | null, status?: string | null, teamMember?: boolean): RoleBadge | null {
   if (!planId) return null
-  if (status && !['active', 'trialing'].includes(status)) return null
+  if (status && !isEntitled(status)) return null
   if (teamMember) return MEMBER_BADGES[planId] || MEMBER_BADGES.founder
   return BADGES[planId] || null
 }
